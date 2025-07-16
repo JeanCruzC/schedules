@@ -1,0 +1,8 @@
+pandas
+numpy
+openpyxl
+pyworkforce
+ortools
+matplotlib
+seaborn
+PULP
