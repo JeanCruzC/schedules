@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import math
 from io import BytesIO
-from pyworkforce.scheduling import MinAbsDifference
 from itertools import combinations, product
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -599,29 +598,6 @@ def get_optimal_break_time(start_hour, shift_duration, day, demand_day):
     
     return best_break
 
-def generate_weekly_pattern(start_hour, shift_duration, working_days, dso_day=None):
-    """
-    Genera un patrón semanal completo con breaks variables por día
-    """
-    weekly_pattern = []
-    
-    for day in range(7):
-        daily_pattern = [0] * 24
-        
-        # Verificar si es día de trabajo
-        if day in working_days and day != dso_day:
-            # Marcar horas de trabajo
-            for h in range(int(shift_duration)):
-                daily_pattern[(int(start_hour)+h)%24] = 1
-            
-            # SOLO para FT (>6h) insertamos break:
-            if shift_duration > 6:
-                br = get_optimal_break_time(start_hour, shift_duration, day, demand_matrix[day])
-                daily_pattern[int(br)%24] = 0
-        
-        weekly_pattern.extend(daily_pattern)
-    
-    return weekly_pattern
 
 def generate_shifts_coverage_corrected():
     """
@@ -672,7 +648,7 @@ def generate_shifts_coverage_corrected():
             for start_hour in start_hours:
                 for dso_day in ACTIVE_DAYS:
                     working_days = [d for d in ACTIVE_DAYS if d != dso_day][:6]
-                    if len(working_days) >= 6:
+                    if len(working_days) >= 6 and 8 * len(working_days) <= 48:
                         weekly_pattern = generate_weekly_pattern(
                             start_hour, 8, working_days, dso_day
                         )
@@ -684,12 +660,12 @@ def generate_shifts_coverage_corrected():
                             pattern_progress.progress(current_patterns / total_patterns)
                             pattern_status.text(f"Generando patrones FT8: {current_patterns}/{total_patterns}")
         
-        # 8h15min con break 45min - 6 días de trabajo
+        # 8h15min con break 45min - máximo 5 días de trabajo
         if allow_8h45:
             for start_hour in start_hours:
                 for dso_day in ACTIVE_DAYS:
-                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:6]
-                    if len(working_days) >= 6:
+                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:5]
+                    if len(working_days) >= 5 and 8.25 * len(working_days) <= 48:
                         weekly_pattern = generate_weekly_pattern_8h45(
                             start_hour, working_days, dso_day
                         )
@@ -701,24 +677,24 @@ def generate_shifts_coverage_corrected():
                             pattern_progress.progress(current_patterns / total_patterns)
                             pattern_status.text(f"Generando patrones FT8h45: {current_patterns}/{total_patterns}")
         
-        # 9 horas - 6 días de trabajo
+        # 9 horas - máximo 5 días de trabajo
         if allow_9h:
             for start_hour in start_hours[::2]:
                 for dso_day in ACTIVE_DAYS:
-                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:6]
-                    if len(working_days) >= 6:
+                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:5]
+                    if len(working_days) >= 5 and 9 * len(working_days) <= 48:
                         weekly_pattern = generate_weekly_pattern(
                             start_hour, 9, working_days, dso_day
                         )
                         shift_name = f"FT9_{start_hour:04.1f}_DSO{dso_day}"
                         shifts_coverage[shift_name] = weekly_pattern
         
-        # 10 horas - 5 días de trabajo
+        # 10 horas - máximo 4 días de trabajo
         if allow_10h:
             for start_hour in start_hours[::2]:
                 for dso_day in ACTIVE_DAYS:
-                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:5]
-                    if len(working_days) >= 5:
+                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:4]
+                    if len(working_days) >= 4 and 10 * len(working_days) <= 48:
                         weekly_pattern = generate_weekly_pattern(
                             start_hour, 10, working_days, dso_day
                         )
@@ -731,9 +707,9 @@ def generate_shifts_coverage_corrected():
         if allow_pt_4h:
             for start_hour in start_hours[::2]:  # Cada 1 hora
                 for num_days in [4, 5, 6]:
-                    if num_days <= len(ACTIVE_DAYS):
+                    if num_days <= len(ACTIVE_DAYS) and 4 * num_days <= 24:
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
-                            weekly_pattern = generate_weekly_pattern(
+                            weekly_pattern = generate_weekly_pattern_simple(
                                 start_hour, 4, list(working_combo)
                             )
                             shift_name = f"PT4_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
@@ -742,10 +718,10 @@ def generate_shifts_coverage_corrected():
         # 6 horas - múltiples combinaciones de días
         if allow_pt_6h:
             for start_hour in start_hours[::3]:  # Cada 1.5 horas
-                for num_days in [3, 4, 5]:
-                    if num_days <= len(ACTIVE_DAYS):
+                for num_days in [3, 4]:
+                    if num_days <= len(ACTIVE_DAYS) and 6 * num_days <= 24:
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
-                            weekly_pattern = generate_weekly_pattern(
+                            weekly_pattern = generate_weekly_pattern_simple(
                                 start_hour, 6, list(working_combo)
                             )
                             shift_name = f"PT6_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
@@ -754,10 +730,10 @@ def generate_shifts_coverage_corrected():
         # 5 horas - múltiples combinaciones de días
         if allow_pt_5h:
             for start_hour in start_hours[::3]:  # Cada 1.5 horas
-                for num_days in [4, 5]:
-                    if num_days <= len(ACTIVE_DAYS):
+                for num_days in [4]:
+                    if num_days <= len(ACTIVE_DAYS) and 5 * num_days <= 24:
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
-                            weekly_pattern = generate_weekly_pattern(
+                            weekly_pattern = generate_weekly_pattern_simple(
                                 start_hour, 5, list(working_combo)
                             )
                             shift_name = f"PT5_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
@@ -2039,6 +2015,11 @@ def generate_weekly_pattern_simple(start_hour, duration, working_days):
     
     return pattern.flatten()
 
+def generate_weekly_pattern_8h45(start_hour, working_days, dso_day=None):
+    """Genera patrón semanal de 8h45 utilizando un break estándar"""
+    break_start = max(1.0, break_from_start)
+    return generate_weekly_pattern_with_break(start_hour, 9, working_days, dso_day, break_start)
+
 
 
 
@@ -2080,6 +2061,11 @@ def analyze_results(assignments, shifts_coverage, demand_matrix):
     for shift_name, count in assignments.items():
         weekly_pattern = shifts_coverage[shift_name]
         pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
+
+        weekly_hours = pattern_matrix.sum()
+        max_allowed = 48 if shift_name.startswith('FT') else 24
+        if weekly_hours > max_allowed:
+            st.warning(f"⚠️ {shift_name} excede el máximo de {max_allowed}h (tiene {weekly_hours}h)")
         total_coverage += pattern_matrix * count
         total_agents += count
         
@@ -2130,22 +2116,23 @@ def create_heatmap(matrix, title, cmap='RdYlBu_r'):
     plt.colorbar(im, ax=ax)
     return fig
 
+
 def export_detailed_schedule(assignments, shifts_coverage):
     """Exporta horarios semanales detallados - ROBUSTO"""
     if not assignments:
         return None
-    
+
     detailed_data = []
     agent_id = 1
-    
+
     for shift_name, count in assignments.items():
         weekly_pattern = shifts_coverage[shift_name]
         pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
-        
+
         # Parsing robusto del nombre del turno
         parts = shift_name.split('_')
         start_hour = float(parts[1])
-        
+
         # Determinar tipo y duración del turno
         if shift_name.startswith('FT8h45'):
             shift_type = 'FT'
@@ -2169,56 +2156,52 @@ def export_detailed_schedule(assignments, shifts_coverage):
             shift_type = 'FT'
             shift_duration = 8
             total_hours = 9
-        
+
         for agent_num in range(count):
             for day in range(7):
                 day_pattern = pattern_matrix[day]
                 work_hours = np.where(day_pattern == 1)[0]
-                
+
                 if len(work_hours) > 0:
                     # Calcular horario específico para cada tipo
                     if shift_name.startswith('FT8h45'):
-                        # 8h15min = 8:15, no 9:00
-                        end_minutes = int((shift_duration % 1) * 60)  # 0.25 * 60 = 15 min
+                        end_minutes = int((shift_duration % 1) * 60)
                         end_hour_int = int(start_hour + shift_duration)
                         if end_hour_int >= 24:
                             horario = f"{int(start_hour):02d}:00-{end_hour_int-24:02d}:{end_minutes:02d}+1"
                         else:
                             horario = f"{int(start_hour):02d}:00-{end_hour_int:02d}:{end_minutes:02d}"
                     else:
-                        # Otros turnos normales
                         end_hour = int(start_hour + total_hours)
                         if end_hour > 24:
                             horario = f"{int(start_hour):02d}:00-{end_hour-24:02d}:00+1"
                         else:
                             horario = f"{int(start_hour):02d}:00-{end_hour:02d}:00"
-                    
-                    # Calcular break específico
+
                     if shift_name.startswith('FT8h45'):
-                        # Para 8h45, el break es de 45 minutos
                         all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
                         actual_hours = set(work_hours)
                         break_hours = all_expected - actual_hours
-                        
+
                         if break_hours:
                             break_hour = min(break_hours) % 24
-                            break_time = f"{break_hour:02d}:00-{break_hour:02d}:45"  # 45 minutos
+                            break_time = f"{break_hour:02d}:00-{break_hour:02d}:45"
                         else:
                             break_time = ""
                     else:
-                        # Otros turnos con break de 1 hora
                         all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
                         actual_hours = set(work_hours)
                         break_hours = all_expected - actual_hours
-                        
+
                         if break_hours:
                             break_hour = min(break_hours) % 24
                             break_end = (break_hour + 1) % 24
-                            if break_end == 0: break_end = 24
+                            if break_end == 0:
+                                break_end = 24
                             break_time = f"{break_hour:02d}:00-{break_end:02d}:00"
                         else:
                             break_time = ""
-                    
+
                     detailed_data.append({
                         'Agente': f"AGT_{agent_id:03d}",
                         'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
@@ -2237,22 +2220,23 @@ def export_detailed_schedule(assignments, shifts_coverage):
                         'Tipo': 'DSO'
                     })
             agent_id += 1
-    
+
     df_detailed = pd.DataFrame(detailed_data)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_detailed.to_excel(writer, sheet_name='Horarios_Semanales', index=False)
-        
+
         df_summary = df_detailed.groupby(['Agente', 'Turno']).size().reset_index(name='Dias_Trabajo')
         df_summary.to_excel(writer, sheet_name='Resumen_Agentes', index=False)
-        
+
         df_shifts = pd.DataFrame([
-            {'Turno': shift, 'Agentes': count} 
+            {'Turno': shift, 'Agentes': count}
             for shift, count in assignments.items()
         ])
         df_shifts.to_excel(writer, sheet_name='Turnos_Asignados', index=False)
-    
+
     return output.getvalue()
+
 
 # ——————————————————————————————————————————————————————————————
 # Botón de ejecución con aprendizaje integrado
@@ -2460,129 +2444,6 @@ if st.button("🚀 Ejecutar Optimización", type="primary", use_container_width=
     else:
         st.error("❌ Error al analizar los resultados")
 
-def export_detailed_schedule(assignments, shifts_coverage):
-    """Exporta horarios semanales detallados - ROBUSTO"""
-    if not assignments:
-        return None
-    
-    detailed_data = []
-    agent_id = 1
-    
-    for shift_name, count in assignments.items():
-        weekly_pattern = shifts_coverage[shift_name]
-        pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
-        
-        # Parsing robusto del nombre del turno
-        parts = shift_name.split('_')
-        start_hour = float(parts[1])
-        
-        # Determinar tipo y duración del turno
-        if shift_name.startswith('FT8h45'):
-            shift_type = 'FT'
-            shift_duration = 8.25
-            total_hours = 9
-        elif shift_name.startswith('FT'):
-            shift_type = 'FT'
-            try:
-                shift_duration = int(parts[0][2:])  # FT8 -> 8
-            except:
-                shift_duration = 8
-            total_hours = shift_duration + 1
-        elif shift_name.startswith('PT'):
-            shift_type = 'PT'
-            try:
-                shift_duration = int(parts[0][2:])  # PT4 -> 4
-            except:
-                shift_duration = 4
-            total_hours = shift_duration
-        else:
-            shift_type = 'FT'
-            shift_duration = 8
-            total_hours = 9
-        
-        for agent_num in range(count):
-            for day in range(7):
-                day_pattern = pattern_matrix[day]
-                work_hours = np.where(day_pattern == 1)[0]
-                
-                if len(work_hours) > 0:
-                    # Calcular horario específico para cada tipo
-                    if shift_name.startswith('FT8h45'):
-                        # 8h15min = 8:15, no 9:00
-                        end_minutes = int((shift_duration % 1) * 60)  # 0.25 * 60 = 15 min
-                        end_hour_int = int(start_hour + shift_duration)
-                        if end_hour_int >= 24:
-                            horario = f"{int(start_hour):02d}:00-{end_hour_int-24:02d}:{end_minutes:02d}+1"
-                        else:
-                            horario = f"{int(start_hour):02d}:00-{end_hour_int:02d}:{end_minutes:02d}"
-                    else:
-                        # Otros turnos normales
-                        end_hour = int(start_hour + total_hours)
-                        if end_hour > 24:
-                            horario = f"{int(start_hour):02d}:00-{end_hour-24:02d}:00+1"
-                        else:
-                            horario = f"{int(start_hour):02d}:00-{end_hour:02d}:00"
-                    
-                    # Calcular break específico
-                    if shift_name.startswith('FT8h45'):
-                        # Para 8h45, el break es de 45 minutos
-                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
-                        actual_hours = set(work_hours)
-                        break_hours = all_expected - actual_hours
-                        
-                        if break_hours:
-                            break_hour = min(break_hours) % 24
-                            break_time = f"{break_hour:02d}:00-{break_hour:02d}:45"  # 45 minutos
-                        else:
-                            break_time = ""
-                    else:
-                        # Otros turnos con break de 1 hora
-                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
-                        actual_hours = set(work_hours)
-                        break_hours = all_expected - actual_hours
-                        
-                        if break_hours:
-                            break_hour = min(break_hours) % 24
-                            break_end = (break_hour + 1) % 24
-                            if break_end == 0: break_end = 24
-                            break_time = f"{break_hour:02d}:00-{break_end:02d}:00"
-                        else:
-                            break_time = ""
-                    
-                    detailed_data.append({
-                        'Agente': f"AGT_{agent_id:03d}",
-                        'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
-                        'Horario': horario,
-                        'Break': break_time,
-                        'Turno': shift_name,
-                        'Tipo': shift_type
-                    })
-                else:
-                    detailed_data.append({
-                        'Agente': f"AGT_{agent_id:03d}",
-                        'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
-                        'Horario': "DSO",
-                        'Break': "",
-                        'Turno': shift_name,
-                        'Tipo': 'DSO'
-                    })
-            agent_id += 1
-    
-    df_detailed = pd.DataFrame(detailed_data)
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_detailed.to_excel(writer, sheet_name='Horarios_Semanales', index=False)
-        
-        df_summary = df_detailed.groupby(['Agente', 'Turno']).size().reset_index(name='Dias_Trabajo')
-        df_summary.to_excel(writer, sheet_name='Resumen_Agentes', index=False)
-        
-        df_shifts = pd.DataFrame([
-            {'Turno': shift, 'Agentes': count} 
-            for shift, count in assignments.items()
-        ])
-        df_shifts.to_excel(writer, sheet_name='Turnos_Asignados', index=False)
-    
-    return output.getvalue()
 
 def calculate_comprehensive_score(current_coverage, new_coverage, demand_matrix, critical_days, peak_hours, strategy):
     """Scoring que balancea déficit vs exceso y promueve eficiencia"""
@@ -2762,171 +2623,7 @@ def analyze_results(assignments, shifts_coverage, demand_matrix):
         'diff_matrix': diff_matrix
     }
 
-# ——————————————————————————————————————————————————————————————
-# 7. Visualización
-# ——————————————————————————————————————————————————————————————
 
-def create_heatmap(matrix, title, cmap='RdYlBu_r'):
-    """
-    Crea un heatmap de la matriz
-    """
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    # Crear heatmap
-    im = ax.imshow(matrix, cmap=cmap, aspect='auto')
-    
-    # Configurar ejes
-    ax.set_xticks(range(24))
-    ax.set_xticklabels([f"{h:02d}" for h in range(24)])
-    ax.set_yticks(range(7))
-    ax.set_yticklabels(dias_semana)
-    
-    # Añadir valores en las celdas
-    for i in range(7):
-        for j in range(24):
-            text = ax.text(j, i, f'{matrix[i, j]:.0f}',
-                         ha="center", va="center", color="black", fontsize=8)
-    
-    ax.set_title(title)
-    ax.set_xlabel('Hora del día')
-    ax.set_ylabel('Día de la semana')
-    
-    # Colorbar
-    plt.colorbar(im, ax=ax)
-    
-    return fig
-
-# ——————————————————————————————————————————————————————————————
-# 8. Exportación
-# ——————————————————————————————————————————————————————————————
-
-def export_detailed_schedule(assignments, shifts_coverage):
-    """Exporta horarios semanales detallados - ROBUSTO"""
-    if not assignments:
-        return None
-    
-    detailed_data = []
-    agent_id = 1
-    
-    for shift_name, count in assignments.items():
-        weekly_pattern = shifts_coverage[shift_name]
-        pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
-        
-        # Parsing robusto del nombre del turno
-        parts = shift_name.split('_')
-        start_hour = float(parts[1])
-        
-        # Determinar tipo y duración del turno
-        if shift_name.startswith('FT8h45'):
-            shift_type = 'FT'
-            shift_duration = 8.25
-            total_hours = 9
-        elif shift_name.startswith('FT'):
-            shift_type = 'FT'
-            try:
-                shift_duration = int(parts[0][2:])  # FT8 -> 8
-            except:
-                shift_duration = 8
-            total_hours = shift_duration + 1
-        elif shift_name.startswith('PT'):
-            shift_type = 'PT'
-            try:
-                shift_duration = int(parts[0][2:])  # PT4 -> 4
-            except:
-                shift_duration = 4
-            total_hours = shift_duration
-        else:
-            shift_type = 'FT'
-            shift_duration = 8
-            total_hours = 9
-        
-        for agent_num in range(count):
-            for day in range(7):
-                day_pattern = pattern_matrix[day]
-                work_hours = np.where(day_pattern == 1)[0]
-                
-                if len(work_hours) > 0:
-                    # Calcular horario específico para cada tipo
-                    if shift_name.startswith('FT8h45'):
-                        # 8h15min = 8:15, no 9:00
-                        end_minutes = int((shift_duration % 1) * 60)  # 0.25 * 60 = 15 min
-                        end_hour_int = int(start_hour + shift_duration)
-                        if end_hour_int >= 24:
-                            horario = f"{int(start_hour):02d}:00-{end_hour_int-24:02d}:{end_minutes:02d}+1"
-                        else:
-                            horario = f"{int(start_hour):02d}:00-{end_hour_int:02d}:{end_minutes:02d}"
-                    else:
-                        # Otros turnos normales
-                        end_hour = int(start_hour + total_hours)
-                        if end_hour > 24:
-                            horario = f"{int(start_hour):02d}:00-{end_hour-24:02d}:00+1"
-                        else:
-                            horario = f"{int(start_hour):02d}:00-{end_hour:02d}:00"
-                    
-                    # Calcular break específico
-                    if shift_name.startswith('FT8h45'):
-                        # Para 8h45, el break es de 45 minutos
-                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
-                        actual_hours = set(work_hours)
-                        break_hours = all_expected - actual_hours
-                        
-                        if break_hours:
-                            break_hour = min(break_hours) % 24
-                            break_time = f"{break_hour:02d}:00-{break_hour:02d}:45"  # 45 minutos
-                        else:
-                            break_time = ""
-                    else:
-                        # Otros turnos con break de 1 hora
-                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
-                        actual_hours = set(work_hours)
-                        break_hours = all_expected - actual_hours
-                        
-                        if break_hours:
-                            break_hour = min(break_hours) % 24
-                            break_end = (break_hour + 1) % 24
-                            if break_end == 0: break_end = 24
-                            break_time = f"{break_hour:02d}:00-{break_end:02d}:00"
-                        else:
-                            break_time = ""
-                    
-                    detailed_data.append({
-                        'Agente': f"AGT_{agent_id:03d}",
-                        'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
-                        'Horario': horario,
-                        'Break': break_time,
-                        'Turno': shift_name,
-                        'Tipo': shift_type
-                    })
-                else:
-                    detailed_data.append({
-                        'Agente': f"AGT_{agent_id:03d}",
-                        'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
-                        'Horario': "DSO",
-                        'Break': "",
-                        'Turno': shift_name,
-                        'Tipo': 'DSO'
-                    })
-            agent_id += 1
-    
-    df_detailed = pd.DataFrame(detailed_data)
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_detailed.to_excel(writer, sheet_name='Horarios_Semanales', index=False)
-        
-        df_summary = df_detailed.groupby(['Agente', 'Turno']).size().reset_index(name='Dias_Trabajo')
-        df_summary.to_excel(writer, sheet_name='Resumen_Agentes', index=False)
-        
-        df_shifts = pd.DataFrame([
-            {'Turno': shift, 'Agentes': count} 
-            for shift, count in assignments.items()
-        ])
-        df_shifts.to_excel(writer, sheet_name='Turnos_Asignados', index=False)
-    
-    return output.getvalue()
-
-# ——————————————————————————————————————————————————————————————
-# 9. Interfaz principal
-# ——————————————————————————————————————————————————————————————
 
 
 
