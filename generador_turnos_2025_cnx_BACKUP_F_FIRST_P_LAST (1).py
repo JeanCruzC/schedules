@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import math
 from io import BytesIO
-from pyworkforce.scheduling import MinAbsDifference
 from itertools import combinations, product
 import matplotlib.pyplot as plt
 import seaborn as sns
