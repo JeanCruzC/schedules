@@ -2119,6 +2119,136 @@ def create_heatmap(matrix, title, cmap='RdYlBu_r'):
 
 
 # ——————————————————————————————————————————————————————————————
+# Exportación detallada de horarios
+# ——————————————————————————————————————————————————————————————
+
+def export_detailed_schedule(assignments, shifts_coverage):
+    """Exporta horarios semanales detallados - ROBUSTO"""
+    if not assignments:
+        return None
+
+    detailed_data = []
+    agent_id = 1
+
+    for shift_name, count in assignments.items():
+        weekly_pattern = shifts_coverage[shift_name]
+        pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
+
+        # Parsing robusto del nombre del turno
+        parts = shift_name.split('_')
+        start_hour = float(parts[1])
+
+        # Determinar tipo y duración del turno
+        if shift_name.startswith('FT8h45'):
+            shift_type = 'FT'
+            shift_duration = 8.25
+            total_hours = 9
+        elif shift_name.startswith('FT'):
+            shift_type = 'FT'
+            try:
+                shift_duration = int(parts[0][2:])  # FT8 -> 8
+            except:
+                shift_duration = 8
+            total_hours = shift_duration + 1
+        elif shift_name.startswith('PT'):
+            shift_type = 'PT'
+            try:
+                shift_duration = int(parts[0][2:])  # PT4 -> 4
+            except:
+                shift_duration = 4
+            total_hours = shift_duration
+        else:
+            shift_type = 'FT'
+            shift_duration = 8
+            total_hours = 9
+
+        for agent_num in range(count):
+            for day in range(7):
+                day_pattern = pattern_matrix[day]
+                work_hours = np.where(day_pattern == 1)[0]
+
+                if len(work_hours) > 0:
+                    # Calcular horario específico para cada tipo
+                    if shift_name.startswith('FT8h45'):
+                        # 8h15min = 8:15, no 9:00
+                        end_minutes = int((shift_duration % 1) * 60)  # 0.25 * 60 = 15 min
+                        end_hour_int = int(start_hour + shift_duration)
+                        if end_hour_int >= 24:
+                            horario = f"{int(start_hour):02d}:00-{end_hour_int-24:02d}:{end_minutes:02d}+1"
+                        else:
+                            horario = f"{int(start_hour):02d}:00-{end_hour_int:02d}:{end_minutes:02d}"
+                    else:
+                        # Otros turnos normales
+                        end_hour = int(start_hour + total_hours)
+                        if end_hour > 24:
+                            horario = f"{int(start_hour):02d}:00-{end_hour-24:02d}:00+1"
+                        else:
+                            horario = f"{int(start_hour):02d}:00-{end_hour:02d}:00"
+
+                    # Calcular break específico
+                    if shift_name.startswith('FT8h45'):
+                        # Para 8h45, el break es de 45 minutos
+                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
+                        actual_hours = set(work_hours)
+                        break_hours = all_expected - actual_hours
+
+                        if break_hours:
+                            break_hour = min(break_hours) % 24
+                            break_time = f"{break_hour:02d}:00-{break_hour:02d}:45"  # 45 minutos
+                        else:
+                            break_time = ""
+                    else:
+                        # Otros turnos con break de 1 hora
+                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
+                        actual_hours = set(work_hours)
+                        break_hours = all_expected - actual_hours
+
+                        if break_hours:
+                            break_hour = min(break_hours) % 24
+                            break_end = (break_hour + 1) % 24
+                            if break_end == 0:
+                                break_end = 24
+                            break_time = f"{break_hour:02d}:00-{break_end:02d}:00"
+                        else:
+                            break_time = ""
+
+                    detailed_data.append({
+                        'Agente': f"AGT_{agent_id:03d}",
+                        'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
+                        'Horario': horario,
+                        'Break': break_time,
+                        'Turno': shift_name,
+                        'Tipo': shift_type
+                    })
+                else:
+                    detailed_data.append({
+                        'Agente': f"AGT_{agent_id:03d}",
+                        'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
+                        'Horario': "DSO",
+                        'Break': "",
+                        'Turno': shift_name,
+                        'Tipo': 'DSO'
+                    })
+            agent_id += 1
+
+    df_detailed = pd.DataFrame(detailed_data)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_detailed.to_excel(writer, sheet_name='Horarios_Semanales', index=False)
+
+        df_summary = df_detailed.groupby(['Agente', 'Turno']).size().reset_index(name='Dias_Trabajo')
+        df_summary.to_excel(writer, sheet_name='Resumen_Agentes', index=False)
+
+        df_shifts = pd.DataFrame([
+            {'Turno': shift, 'Agentes': count}
+            for shift, count in assignments.items()
+        ])
+        df_shifts.to_excel(writer, sheet_name='Turnos_Asignados', index=False)
+
+    return output.getvalue()
+
+
+# ——————————————————————————————————————————————————————————————
 # Botón de ejecución con aprendizaje integrado
 # ——————————————————————————————————————————————————————————————
 
@@ -2504,129 +2634,6 @@ def analyze_results(assignments, shifts_coverage, demand_matrix):
     }
 
 
-def export_detailed_schedule(assignments, shifts_coverage):
-    """Exporta horarios semanales detallados - ROBUSTO"""
-    if not assignments:
-        return None
-    
-    detailed_data = []
-    agent_id = 1
-    
-    for shift_name, count in assignments.items():
-        weekly_pattern = shifts_coverage[shift_name]
-        pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
-        
-        # Parsing robusto del nombre del turno
-        parts = shift_name.split('_')
-        start_hour = float(parts[1])
-        
-        # Determinar tipo y duración del turno
-        if shift_name.startswith('FT8h45'):
-            shift_type = 'FT'
-            shift_duration = 8.25
-            total_hours = 9
-        elif shift_name.startswith('FT'):
-            shift_type = 'FT'
-            try:
-                shift_duration = int(parts[0][2:])  # FT8 -> 8
-            except:
-                shift_duration = 8
-            total_hours = shift_duration + 1
-        elif shift_name.startswith('PT'):
-            shift_type = 'PT'
-            try:
-                shift_duration = int(parts[0][2:])  # PT4 -> 4
-            except:
-                shift_duration = 4
-            total_hours = shift_duration
-        else:
-            shift_type = 'FT'
-            shift_duration = 8
-            total_hours = 9
-        
-        for agent_num in range(count):
-            for day in range(7):
-                day_pattern = pattern_matrix[day]
-                work_hours = np.where(day_pattern == 1)[0]
-                
-                if len(work_hours) > 0:
-                    # Calcular horario específico para cada tipo
-                    if shift_name.startswith('FT8h45'):
-                        # 8h15min = 8:15, no 9:00
-                        end_minutes = int((shift_duration % 1) * 60)  # 0.25 * 60 = 15 min
-                        end_hour_int = int(start_hour + shift_duration)
-                        if end_hour_int >= 24:
-                            horario = f"{int(start_hour):02d}:00-{end_hour_int-24:02d}:{end_minutes:02d}+1"
-                        else:
-                            horario = f"{int(start_hour):02d}:00-{end_hour_int:02d}:{end_minutes:02d}"
-                    else:
-                        # Otros turnos normales
-                        end_hour = int(start_hour + total_hours)
-                        if end_hour > 24:
-                            horario = f"{int(start_hour):02d}:00-{end_hour-24:02d}:00+1"
-                        else:
-                            horario = f"{int(start_hour):02d}:00-{end_hour:02d}:00"
-                    
-                    # Calcular break específico
-                    if shift_name.startswith('FT8h45'):
-                        # Para 8h45, el break es de 45 minutos
-                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
-                        actual_hours = set(work_hours)
-                        break_hours = all_expected - actual_hours
-                        
-                        if break_hours:
-                            break_hour = min(break_hours) % 24
-                            break_time = f"{break_hour:02d}:00-{break_hour:02d}:45"  # 45 minutos
-                        else:
-                            break_time = ""
-                    else:
-                        # Otros turnos con break de 1 hora
-                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
-                        actual_hours = set(work_hours)
-                        break_hours = all_expected - actual_hours
-                        
-                        if break_hours:
-                            break_hour = min(break_hours) % 24
-                            break_end = (break_hour + 1) % 24
-                            if break_end == 0: break_end = 24
-                            break_time = f"{break_hour:02d}:00-{break_end:02d}:00"
-                        else:
-                            break_time = ""
-                    
-                    detailed_data.append({
-                        'Agente': f"AGT_{agent_id:03d}",
-                        'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
-                        'Horario': horario,
-                        'Break': break_time,
-                        'Turno': shift_name,
-                        'Tipo': shift_type
-                    })
-                else:
-                    detailed_data.append({
-                        'Agente': f"AGT_{agent_id:03d}",
-                        'Dia': ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][day],
-                        'Horario': "DSO",
-                        'Break': "",
-                        'Turno': shift_name,
-                        'Tipo': 'DSO'
-                    })
-            agent_id += 1
-    
-    df_detailed = pd.DataFrame(detailed_data)
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_detailed.to_excel(writer, sheet_name='Horarios_Semanales', index=False)
-        
-        df_summary = df_detailed.groupby(['Agente', 'Turno']).size().reset_index(name='Dias_Trabajo')
-        df_summary.to_excel(writer, sheet_name='Resumen_Agentes', index=False)
-        
-        df_shifts = pd.DataFrame([
-            {'Turno': shift, 'Agentes': count} 
-            for shift, count in assignments.items()
-        ])
-        df_shifts.to_excel(writer, sheet_name='Turnos_Asignados', index=False)
-    
-    return output.getvalue()
 
 # ——————————————————————————————————————————————————————————————
 # 9. Interfaz principal
