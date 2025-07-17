@@ -30,4 +30,5 @@ The expected Excel file `Requerido.xlsx` must contain a column named `Día` with
 
 Incluye un perfil de optimización llamado **JEAN** pensado para obtener
 una cobertura real cercana al 100% con la menor cantidad de agentes
-posible, reduciendo el exceso de personal.
+posible. Este perfil ahora aplica una penalización de exceso más fuerte
+para asegurar que la cobertura real y pura se mantengan en 100%.
