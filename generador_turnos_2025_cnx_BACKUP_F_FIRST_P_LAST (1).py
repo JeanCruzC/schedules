@@ -2194,6 +2194,14 @@ def export_detailed_schedule(assignments, shifts_coverage):
                             horario = f"{int(start_hour):02d}:00-{end_hour_int-24:02d}:{end_minutes:02d}+1"
                         else:
                             horario = f"{int(start_hour):02d}:00-{end_hour_int:02d}:{end_minutes:02d}"
+                    elif shift_name.startswith('PT'):
+                        # Para PT calcular horario real según el patrón
+                        start_idx = int(work_hours[0])
+                        end_idx = int(work_hours[-1]) + 1
+                        next_day = end_idx > 23
+                        if end_idx >= 24:
+                            end_idx -= 24
+                        horario = f"{start_idx:02d}:00-{end_idx:02d}:00" + ("+1" if next_day else "")
                     else:
                         # Otros turnos normales
                         end_hour = int(start_hour + total_hours)
