@@ -710,7 +710,7 @@ def generate_shifts_coverage_corrected():
                 for num_days in [4, 5, 6]:
                     if num_days <= len(ACTIVE_DAYS) and 4 * num_days <= 24:
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
-                            weekly_pattern = generate_weekly_pattern(
+                            weekly_pattern = generate_weekly_pattern_simple(
                                 start_hour, 4, list(working_combo)
                             )
                             shift_name = f"PT4_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
@@ -722,7 +722,7 @@ def generate_shifts_coverage_corrected():
                 for num_days in [4]:
                     if num_days <= len(ACTIVE_DAYS) and 6 * num_days <= 24:
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
-                            weekly_pattern = generate_weekly_pattern(
+                            weekly_pattern = generate_weekly_pattern_simple(
                                 start_hour, 6, list(working_combo)
                             )
                             shift_name = f"PT6_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
@@ -734,8 +734,8 @@ def generate_shifts_coverage_corrected():
                 for num_days in [5]:
                     if num_days <= len(ACTIVE_DAYS) and 5 * num_days <= 25:
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
-                            weekly_pattern = generate_weekly_pattern(
-                                start_hour, 5, list(working_combo)
+                            weekly_pattern = generate_weekly_pattern_pt5(
+                                start_hour, list(working_combo)
                             )
                             shift_name = f"PT5_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
@@ -2016,6 +2016,23 @@ def generate_weekly_pattern_simple(start_hour, duration, working_days):
     
     return pattern.flatten()
 
+def generate_weekly_pattern_pt5(start_hour, working_days):
+    """Genera patrón de 24h para PT5 (5h en cuatro días y 4h en uno)"""
+    pattern = np.zeros((7, 24))
+
+    if not working_days:
+        return pattern.flatten()
+
+    four_hour_day = working_days[-1]
+    for day in working_days:
+        hours = 4 if day == four_hour_day else 5
+        for h in range(hours):
+            hour_idx = int(start_hour + h) % 24
+            if hour_idx < 24:
+                pattern[day, hour_idx] = 1
+
+    return pattern.flatten()
+
 def generate_weekly_pattern_8h45(start_hour, working_days, dso_day=None):
     """Genera patrón semanal de 8h45 utilizando un break estándar"""
     break_start = max(1.0, break_from_start)
@@ -2197,6 +2214,8 @@ def export_detailed_schedule(assignments, shifts_coverage):
                             break_time = f"{break_hour:02d}:00-{break_hour:02d}:45"  # 45 minutos
                         else:
                             break_time = ""
+                    elif shift_name.startswith('PT'):
+                        break_time = ""
                     else:
                         # Otros turnos con break de 1 hora
                         all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
