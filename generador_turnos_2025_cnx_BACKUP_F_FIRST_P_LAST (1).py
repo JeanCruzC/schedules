@@ -2582,56 +2582,6 @@ def analyze_coverage_precision(assignments, shifts_coverage, demand_matrix):
         'total_coverage': total_coverage
     }
 
-def analyze_results(assignments, shifts_coverage, demand_matrix):
-    """
-    Analiza los resultados de la optimización semanal
-    """
-    if not assignments:
-        return None
-    
-    # Calcular cobertura total
-    total_coverage = np.zeros((7, 24))
-    total_agents = 0
-    ft_agents = 0
-    pt_agents = 0
-    
-    for shift_name, count in assignments.items():
-        # El patrón ya es semanal (168 elementos)
-        weekly_pattern = shifts_coverage[shift_name]
-        
-        # Convertir patrón lineal a matriz 7x24
-        pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
-        
-        # Sumar cobertura
-        total_coverage += pattern_matrix * count
-        total_agents += count
-        
-        # Clasificar por tipo de contrato
-        if shift_name.startswith('FT'):
-            ft_agents += count
-        else:
-            pt_agents += count
-    
-    # Calcular métricas
-    coverage_hours = (total_coverage > 0).sum()
-    required_hours = (demand_matrix > 0).sum()
-    coverage_percentage = (coverage_hours / required_hours * 100) if required_hours > 0 else 0
-    
-    # Calcular over/under staffing
-    diff_matrix = total_coverage - demand_matrix
-    overstaffing = np.sum(diff_matrix[diff_matrix > 0])
-    understaffing = np.sum(np.abs(diff_matrix[diff_matrix < 0]))
-    
-    return {
-        'total_coverage': total_coverage,
-        'total_agents': total_agents,
-        'ft_agents': ft_agents,
-        'pt_agents': pt_agents,
-        'coverage_percentage': coverage_percentage,
-        'overstaffing': overstaffing,
-        'understaffing': understaffing,
-        'diff_matrix': diff_matrix
-    }
 
 
 
