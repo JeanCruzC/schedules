@@ -353,7 +353,7 @@ else:
         "100% Cobertura Total": {"agent_limit_factor": 5, "excess_penalty": 0.001, "peak_bonus": 4.0, "critical_bonus": 5.0},
         "Cobertura Perfecta": {"agent_limit_factor": 8, "excess_penalty": 0.01, "peak_bonus": 3.0, "critical_bonus": 4.0},
         "100% Exacto": {"agent_limit_factor": 6, "excess_penalty": 0.005, "peak_bonus": 4.0, "critical_bonus": 5.0},
-        "JEAN": {"agent_limit_factor": 20, "excess_penalty": 1.5, "peak_bonus": 2.0, "critical_bonus": 2.5},
+        "JEAN": {"agent_limit_factor": 50, "excess_penalty": 6.0, "peak_bonus": 2.0, "critical_bonus": 2.5},
         "Aprendizaje Adaptativo": {"agent_limit_factor": 8, "excess_penalty": 0.01, "peak_bonus": 3.0, "critical_bonus": 4.0}
     }
     
@@ -879,7 +879,9 @@ def optimize_ft_phase(ft_shifts, demand_matrix):
             prob += coverage - excess_vars[(day, hour)] <= demand
     
     # Límite de exceso en fase FT según perfil
-    if excess_penalty > 5:  # Perfiles estrictos
+    if optimization_profile == "JEAN":
+        prob += total_excess == 0
+    elif excess_penalty > 5:  # Perfiles estrictos
         prob += total_excess <= demand_matrix.sum() * 0.02  # 2% máximo
     elif excess_penalty > 2:
         prob += total_excess <= demand_matrix.sum() * 0.02  # 2% máximo
@@ -963,7 +965,13 @@ def optimize_pt_phase(pt_shifts, remaining_demand):
             
             prob += coverage + deficit_vars[(day, hour)] >= demand
             prob += coverage - excess_vars[(day, hour)] <= demand
-    
+
+    # Límite de exceso en fase PT según perfil
+    if optimization_profile == "JEAN":
+        prob += total_excess == 0
+    elif excess_penalty > 5:
+        prob += total_excess <= remaining_demand.sum() * 0.02
+
     # Resolver
     prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=TIME_SOLVER//2))
     
