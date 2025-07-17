@@ -1181,8 +1181,17 @@ def optimize_with_precision_targeting(shifts_coverage, demand_matrix):
                 if demand == 0:
                     prob += coverage <= 1  # Permitir máximo 1 agente en horas sin demanda
         
-        # Límite dinámico de agentes más generoso
-        dynamic_agent_limit = max(int(total_demand / max(1, agent_limit_factor - 2)), int(peak_demand * 2))
+        # Límite dinámico de agentes ajustado según perfil
+        if optimization_profile == "JEAN":
+            dynamic_agent_limit = max(
+                int(total_demand / max(1, agent_limit_factor)),
+                int(peak_demand * 1.1),
+            )
+        else:
+            dynamic_agent_limit = max(
+                int(total_demand / max(1, agent_limit_factor - 2)),
+                int(peak_demand * 2),
+            )
         prob += total_agents <= dynamic_agent_limit
         
         # Control de exceso global más flexible
