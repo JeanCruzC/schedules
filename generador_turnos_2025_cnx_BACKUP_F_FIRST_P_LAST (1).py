@@ -690,14 +690,14 @@ def generate_shifts_coverage_corrected():
                         shift_name = f"FT9_{start_hour:04.1f}_DSO{dso_day}"
                         shifts_coverage[shift_name] = weekly_pattern
         
-        # 10 horas - máximo 4 días de trabajo
+        # 10 horas - 5 días (4×10h + 1×8h = 48h/sem)
         if allow_10h:
             for start_hour in start_hours[::2]:
                 for dso_day in ACTIVE_DAYS:
-                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:4]
-                    if len(working_days) >= 4 and 10 * len(working_days) <= 48:
-                        weekly_pattern = generate_weekly_pattern(
-                            start_hour, 10, working_days, dso_day
+                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:5]
+                    if len(working_days) >= 5 and 10 * 4 + 8 <= 48:
+                        weekly_pattern = generate_weekly_pattern_ft10_48(
+                            start_hour, working_days
                         )
                         shift_name = f"FT10_{start_hour:04.1f}_DSO{dso_day}"
                         shifts_coverage[shift_name] = weekly_pattern
@@ -2033,6 +2033,28 @@ def generate_weekly_pattern_pt5(start_hour, working_days):
 
     return pattern.flatten()
 
+def generate_weekly_pattern_ft10_48(start_hour, working_days):
+    """Genera patrón de 48h para FT10 combinando un día de 8h"""
+    pattern = np.zeros((7, 24))
+
+    if not working_days:
+        return pattern.flatten()
+
+    eight_hour_day = working_days[-1]
+    for day in working_days:
+        duration = 8 if day == eight_hour_day else 10
+        day_pattern = generate_weekly_pattern_with_break(
+            start_hour,
+            duration,
+            [day],
+            None,
+            max(1.0, break_from_start),
+        )
+        pattern_day = np.array(day_pattern).reshape(7, 24)
+        pattern[day] = pattern_day[day]
+
+    return pattern.flatten()
+
 def generate_weekly_pattern_8h45(start_hour, working_days, dso_day=None):
     """Genera patrón semanal de 8h45 utilizando un break estándar"""
     break_start = max(1.0, break_from_start)
@@ -2194,6 +2216,14 @@ def export_detailed_schedule(assignments, shifts_coverage):
                             horario = f"{int(start_hour):02d}:00-{end_hour_int-24:02d}:{end_minutes:02d}+1"
                         else:
                             horario = f"{int(start_hour):02d}:00-{end_hour_int:02d}:{end_minutes:02d}"
+                    elif shift_name.startswith('PT'):
+                        # Para PT calcular horario real según el patrón
+                        start_idx = int(work_hours[0])
+                        end_idx = int(work_hours[-1]) + 1
+                        next_day = end_idx > 23
+                        if end_idx >= 24:
+                            end_idx -= 24
+                        horario = f"{start_idx:02d}:00-{end_idx:02d}:00" + ("+1" if next_day else "")
                     else:
                         # Otros turnos normales
                         end_hour = int(start_hour + total_hours)
