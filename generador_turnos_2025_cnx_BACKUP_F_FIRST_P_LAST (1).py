@@ -716,10 +716,10 @@ def generate_shifts_coverage_corrected():
                             shift_name = f"PT4_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
         
-        # 6 horas - múltiples combinaciones de días
+        # 6 horas - combinaciones de 4 días (24h/sem)
         if allow_pt_6h:
             for start_hour in start_hours[::3]:  # Cada 1.5 horas
-                for num_days in [3, 4]:
+                for num_days in [4]:
                     if num_days <= len(ACTIVE_DAYS) and 6 * num_days <= 24:
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
                             weekly_pattern = generate_weekly_pattern(
@@ -728,11 +728,11 @@ def generate_shifts_coverage_corrected():
                             shift_name = f"PT6_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
         
-        # 5 horas - múltiples combinaciones de días
+        # 5 horas - combinaciones de 5 días (~25h/sem)
         if allow_pt_5h:
             for start_hour in start_hours[::3]:  # Cada 1.5 horas
-                for num_days in [4]:
-                    if num_days <= len(ACTIVE_DAYS) and 5 * num_days <= 24:
+                for num_days in [5]:
+                    if num_days <= len(ACTIVE_DAYS) and 5 * num_days <= 25:
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
                             weekly_pattern = generate_weekly_pattern(
                                 start_hour, 5, list(working_combo)
@@ -1941,7 +1941,7 @@ def generate_shift_patterns():
         
         if allow_pt_6h:
             for start_hour in start_hours[::2]:
-                for num_days in [3, 4, 5]:
+                for num_days in [4]:
                     if num_days <= len(ACTIVE_DAYS):
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
                             pattern = generate_weekly_pattern_simple(start_hour, 6, list(working_combo))
@@ -1949,7 +1949,7 @@ def generate_shift_patterns():
         
         if allow_pt_5h:
             for start_hour in start_hours[::2]:
-                for num_days in [4, 5]:
+                for num_days in [5]:
                     if num_days <= len(ACTIVE_DAYS):
                         for working_combo in combinations(ACTIVE_DAYS, num_days):
                             pattern = generate_weekly_pattern_simple(start_hour, 5, list(working_combo))
