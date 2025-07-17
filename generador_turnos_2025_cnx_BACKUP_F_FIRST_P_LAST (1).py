@@ -299,6 +299,7 @@ optimization_profile = st.sidebar.selectbox(
         "100% Cobertura Total",
         "Cobertura Perfecta",
         "100% Exacto",
+        "JEAN",
         "Personalizado",
         "Aprendizaje Adaptativo"
     ],
@@ -352,6 +353,7 @@ else:
         "100% Cobertura Total": {"agent_limit_factor": 5, "excess_penalty": 0.001, "peak_bonus": 4.0, "critical_bonus": 5.0},
         "Cobertura Perfecta": {"agent_limit_factor": 8, "excess_penalty": 0.01, "peak_bonus": 3.0, "critical_bonus": 4.0},
         "100% Exacto": {"agent_limit_factor": 6, "excess_penalty": 0.005, "peak_bonus": 4.0, "critical_bonus": 5.0},
+        "JEAN": {"agent_limit_factor": 20, "excess_penalty": 1.5, "peak_bonus": 2.0, "critical_bonus": 2.5},
         "Aprendizaje Adaptativo": {"agent_limit_factor": 8, "excess_penalty": 0.01, "peak_bonus": 3.0, "critical_bonus": 4.0}
     }
     
