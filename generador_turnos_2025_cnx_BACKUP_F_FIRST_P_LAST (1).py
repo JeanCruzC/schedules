@@ -13,6 +13,7 @@ import time
 import json
 import hashlib
 import os
+import re
 try:
     import pulp
     PULP_AVAILABLE = True
@@ -1906,7 +1907,7 @@ def generate_break_variants(shift_name, base_pattern, demand_matrix, current_cov
     
     # Extraer información del turno
     parts = shift_name.split('_')
-    start_hour = float(parts[1])
+    start_hour = _extract_start_hour(shift_name)
     shift_duration = int(parts[0][2:])
     
     # Calcular ventana de break válida dinámicamente
@@ -2274,9 +2275,15 @@ def create_heatmap(matrix, title, cmap='RdYlBu_r'):
     return fig
 
 
+
 # ——————————————————————————————————————————————————————————————
 # Exportación detallada de horarios
 # ——————————————————————————————————————————————————————————————
+
+def _extract_start_hour(name: str) -> float:
+    """Return the start hour encoded in a shift name."""
+    m = re.search(r"_(\d{1,2}(?:\.\d)?)", name)
+    return float(m.group(1)) if m else 0.0
 
 def export_detailed_schedule(assignments, shifts_coverage):
     """Exporta horarios semanales detallados - ROBUSTO"""
@@ -2292,7 +2299,7 @@ def export_detailed_schedule(assignments, shifts_coverage):
 
         # Parsing robusto del nombre del turno
         parts = shift_name.split('_')
-        start_hour = float(parts[1])
+        start_hour = _extract_start_hour(shift_name)
 
         # Determinar tipo y duración del turno
         if shift_name.startswith('FT10p8'):
