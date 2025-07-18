@@ -332,6 +332,21 @@ if use_learning:
     else:
         st.sidebar.info("🧠 **Modo Evolutivo**: El sistema mejora automáticamente en cada ejecución")
 
+# Perfiles predefinidos
+profiles = {
+    "Equilibrado (Recomendado)": {"agent_limit_factor": 12, "excess_penalty": 2.0, "peak_bonus": 1.5, "critical_bonus": 2.0},
+    "Conservador": {"agent_limit_factor": 30, "excess_penalty": 0.5, "peak_bonus": 1.0, "critical_bonus": 1.2},
+    "Agresivo": {"agent_limit_factor": 15, "excess_penalty": 0.05, "peak_bonus": 1.5, "critical_bonus": 2.0},
+    "Máxima Cobertura": {"agent_limit_factor": 7, "excess_penalty": 0.005, "peak_bonus": 3.0, "critical_bonus": 4.0},
+    "Mínimo Costo": {"agent_limit_factor": 35, "excess_penalty": 0.8, "peak_bonus": 0.8, "critical_bonus": 1.0},
+    "100% Cobertura Eficiente": {"agent_limit_factor": 6, "excess_penalty": 0.01, "peak_bonus": 3.5, "critical_bonus": 4.5},
+    "100% Cobertura Total": {"agent_limit_factor": 5, "excess_penalty": 0.001, "peak_bonus": 4.0, "critical_bonus": 5.0},
+    "Cobertura Perfecta": {"agent_limit_factor": 8, "excess_penalty": 0.01, "peak_bonus": 3.0, "critical_bonus": 4.0},
+    "100% Exacto": {"agent_limit_factor": 6, "excess_penalty": 0.005, "peak_bonus": 4.0, "critical_bonus": 5.0},
+    "JEAN": {"agent_limit_factor": 30, "excess_penalty": 5.0, "peak_bonus": 2.0, "critical_bonus": 2.5},
+    "Aprendizaje Adaptativo": {"agent_limit_factor": 8, "excess_penalty": 0.01, "peak_bonus": 3.0, "critical_bonus": 4.0},
+}
+
 # Configuración inicial de parámetros
 if optimization_profile == "Personalizado":
     st.sidebar.subheader("⚙️ Parámetros Personalizados")
@@ -342,10 +357,11 @@ if optimization_profile == "Personalizado":
 
 elif optimization_profile == "JEAN Personalizado":
     st.sidebar.subheader("⚙️ JEAN Personalizado")
-    agent_limit_factor = st.sidebar.slider("Factor límite agentes", 15, 35, 30)
-    excess_penalty = st.sidebar.slider("Penalización exceso", 0.1, 5.0, 5.0, step=0.1)
-    peak_bonus = st.sidebar.slider("Bonificación horas pico", 1.0, 3.0, 2.0, step=0.1)
-    critical_bonus = st.sidebar.slider("Bonificación días críticos", 1.0, 3.0, 2.5, step=0.1)
+    jean_cfg = profiles["JEAN"]
+    agent_limit_factor = jean_cfg["agent_limit_factor"]
+    excess_penalty = jean_cfg["excess_penalty"]
+    peak_bonus = jean_cfg["peak_bonus"]
+    critical_bonus = jean_cfg["critical_bonus"]
     custom_work_days = st.sidebar.slider("Días laborables por semana", 1, 7, 5)
     custom_shift_hours = st.sidebar.slider("Horas de turno", 4, 12, 8)
     break_duration = st.sidebar.slider("Duración del break (h)", 1, 3, 1)
@@ -366,19 +382,6 @@ elif optimization_profile == "JEAN Personalizado":
 
 else:
     # Configuraciones predefinidas
-    profiles = {
-        "Equilibrado (Recomendado)": {"agent_limit_factor": 12, "excess_penalty": 2.0, "peak_bonus": 1.5, "critical_bonus": 2.0},
-        "Conservador": {"agent_limit_factor": 30, "excess_penalty": 0.5, "peak_bonus": 1.0, "critical_bonus": 1.2},
-        "Agresivo": {"agent_limit_factor": 15, "excess_penalty": 0.05, "peak_bonus": 1.5, "critical_bonus": 2.0},
-        "Máxima Cobertura": {"agent_limit_factor": 7, "excess_penalty": 0.005, "peak_bonus": 3.0, "critical_bonus": 4.0},
-        "Mínimo Costo": {"agent_limit_factor": 35, "excess_penalty": 0.8, "peak_bonus": 0.8, "critical_bonus": 1.0},
-        "100% Cobertura Eficiente": {"agent_limit_factor": 6, "excess_penalty": 0.01, "peak_bonus": 3.5, "critical_bonus": 4.5},
-        "100% Cobertura Total": {"agent_limit_factor": 5, "excess_penalty": 0.001, "peak_bonus": 4.0, "critical_bonus": 5.0},
-        "Cobertura Perfecta": {"agent_limit_factor": 8, "excess_penalty": 0.01, "peak_bonus": 3.0, "critical_bonus": 4.0},
-        "100% Exacto": {"agent_limit_factor": 6, "excess_penalty": 0.005, "peak_bonus": 4.0, "critical_bonus": 5.0},
-        "JEAN": {"agent_limit_factor": 30, "excess_penalty": 5.0, "peak_bonus": 2.0, "critical_bonus": 2.5},
-        "Aprendizaje Adaptativo": {"agent_limit_factor": 8, "excess_penalty": 0.01, "peak_bonus": 3.0, "critical_bonus": 4.0}
-    }
     
     config = profiles[optimization_profile]
     agent_limit_factor = config["agent_limit_factor"]

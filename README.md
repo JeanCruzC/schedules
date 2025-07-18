@@ -21,7 +21,7 @@ This project creates optimized work schedules using Streamlit.
    When prompted, upload the demand Excel file (see assumption below).
 
 3. Choose the **JEAN** profile from the sidebar to minimise the sum of excess and deficit while keeping coverage near 100%.
-4. Select **JEAN Personalizado** to define custom shift rules such as days worked per week, hours per day and break placement.
+4. Select **JEAN Personalizado** to choose the working days, hours per day and break placement. All other solver parameters use the JEAN profile automatically.
 
 ## Excel Input
 
@@ -36,4 +36,4 @@ déficit siempre que la cobertura alcance el objetivo (al menos 98 %).
 
 ## Perfil JEAN Personalizado
 
-Permite especificar el número de días laborables por semana, la duración diaria del turno y la ventana de break. Los patrones generados utilizarán estas configuraciones antes de ejecutar la optimización.
+Este modo solo permite elegir los días laborables por semana, la duración diaria del turno y la ventana de break. El resto de parámetros del solver se fijan automáticamente según el perfil **JEAN**.
