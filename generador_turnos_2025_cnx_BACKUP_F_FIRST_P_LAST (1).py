@@ -663,14 +663,12 @@ def generate_shifts_coverage_corrected():
     total_patterns = 0
     current_patterns = 0
     
-    # Horarios de inicio optimizados (menos opciones para reducir complejidad)
-    # Expandir horarios de inicio para más patrones
-    start_hours = []
-    for h in range(0, 24):  # Todas las horas del día
-        start_hours.append(h)
-        start_hours.append(h + 0.5)  # Medios horarios
+    # Horarios de inicio optimizados
+    step = 0.5
+    if optimization_profile == "JEAN Personalizado":
+        step = template_cfg.get("slot_duration_minutes", 30) / 60
 
-    start_hours = [h for h in start_hours if 0 <= h <= 23.5]
+    start_hours = [h for h in np.arange(0, 24, step) if h <= 23.5]
 
     # Perfil JEAN Personalizado: leer patrones desde JSON y retornar
     if optimization_profile == "JEAN Personalizado":
@@ -680,6 +678,7 @@ def generate_shifts_coverage_corrected():
             start_hours=start_hours,
             break_from_start=break_from_start,
             break_from_end=break_from_end,
+            slot_duration_minutes=int(step * 60),
         )
 
         if not use_ft:

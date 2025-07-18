@@ -24,31 +24,68 @@ def _build_pattern(days: Iterable[int], durations: Iterable[int], start_hour: fl
     return pattern.flatten()
 
 
-def load_shift_patterns(cfg: Union[str, dict], *, start_hours: Iterable[float] = None,
-                         break_from_start: float = 2.0, break_from_end: float = 2.0) -> Dict[str, np.ndarray]:
+def load_shift_patterns(
+    cfg: Union[str, dict], *, start_hours: Iterable[float] | None = None,
+    break_from_start: float = 2.0, break_from_end: float = 2.0,
+    slot_duration_minutes: int = 30
+) -> Dict[str, np.ndarray]:
     """Parse JSON shift configuration and return pattern dictionary."""
     if isinstance(cfg, str):
-        with open(cfg, 'r') as fh:
+        with open(cfg, "r") as fh:
             data = json.load(fh)
     else:
         data = cfg
 
-    start_hours = list(start_hours) if start_hours is not None else list(np.arange(0, 24, 0.5))
     shifts_coverage: Dict[str, np.ndarray] = {}
     for shift in data.get("shifts", []):
         name = shift.get("name", "SHIFT")
         pat = shift.get("pattern", {})
-        work_days: List[int] = pat.get("work_days", [])
-        segments: List[int] = pat.get("segments", [])
         brk = shift.get("break", 0)
-        if not work_days or not segments:
-            continue
-        for days_sel in combinations(work_days, min(len(segments), len(work_days))):
+
+        slot_min = shift.get("slot_duration_minutes", slot_duration_minutes)
+        step = slot_min / 60
+        sh_hours = list(start_hours) if start_hours is not None else list(np.arange(0, 24, step))
+
+        work_days = pat.get("work_days", [])
+        segments_spec = pat.get("segments", [])
+        segments: List[int] = []
+        for seg in segments_spec:
+            if isinstance(seg, dict):
+                hours = seg.get("hours")
+                count = seg.get("count", 1)
+                if hours is None:
+                    continue
+                segments.extend([int(hours)] * int(count))
+            else:
+                segments.append(int(seg))
+
+        if isinstance(work_days, int):
+            day_candidates = range(7)
+            day_combos = combinations(day_candidates, work_days)
+        else:
+            day_combos = combinations(work_days, min(len(segments), len(work_days)))
+
+        if isinstance(brk, dict):
+            if brk.get("enabled", False):
+                brk_len = brk.get("length_minutes", 0) / 60
+                brk_start = brk.get("earliest_after_start", 0) / 60
+                brk_end = brk.get("latest_before_end", 0) / 60
+            else:
+                brk_len = 0
+                brk_start = break_from_start
+                brk_end = break_from_end
+        else:
+            brk_len = float(brk)
+            brk_start = break_from_start
+            brk_end = break_from_end
+
+        for days_sel in day_combos:
             for perm in set(permutations(segments, len(days_sel))):
-                for sh in start_hours:
-                    pattern = _build_pattern(days_sel, perm, sh, brk, break_from_start, break_from_end)
+                for sh in sh_hours:
+                    pattern = _build_pattern(days_sel, perm, sh, brk_len, brk_start, brk_end)
                     day_str = ''.join(map(str, days_sel))
                     seg_str = '_'.join(map(str, perm))
                     shift_name = f"{name}_{sh:04.1f}_{day_str}_{seg_str}"
                     shifts_coverage[shift_name] = pattern
+
     return shifts_coverage

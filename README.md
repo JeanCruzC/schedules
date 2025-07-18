@@ -86,3 +86,35 @@ Example `examples/shift_config.json`:
   ]
 }
 ```
+
+The loader also understands a **v2** format where each shift specifies the
+resolution of the start times, the number of segments per duration and a break
+window. Upload a file following this structure when using **JEAN Personalizado**
+to predefine the available patterns.
+
+Example `examples/shift_config_v2.json`:
+
+```json
+{
+  "shifts": [
+    {
+      "name": "FT_12_9_6",
+      "slot_duration_minutes": 30,
+      "pattern": {
+        "work_days": 6,
+        "segments": [
+          {"hours": 12, "count": 2},
+          {"hours": 9,  "count": 2},
+          {"hours": 6,  "count": 2}
+        ]
+      },
+      "break": {
+        "enabled": true,
+        "length_minutes": 60,
+        "earliest_after_start": 120,
+        "latest_before_end": 120
+      }
+    }
+  ]
+}
+```
