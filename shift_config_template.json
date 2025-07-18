@@ -1,0 +1,14 @@
+{
+  "use_ft": true,
+  "use_pt": true,
+  "ft_work_days": 5,
+  "ft_shift_hours": 8,
+  "ft_break_duration": 1,
+  "ft_break_from_start": 2,
+  "ft_break_from_end": 2,
+  "pt_work_days": 5,
+  "pt_shift_hours": 6,
+  "pt_break_duration": 1,
+  "pt_break_from_start": 2,
+  "pt_break_from_end": 2
+}
