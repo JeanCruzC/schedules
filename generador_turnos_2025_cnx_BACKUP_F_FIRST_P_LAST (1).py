@@ -14,11 +14,15 @@ import json
 import hashlib
 import os
 import re
+from json_shift_loader import load_shift_patterns
 try:
     import pulp
     PULP_AVAILABLE = True
 except ImportError:
     PULP_AVAILABLE = False
+
+# Store uploaded JSON configuration for custom shifts
+template_cfg = {}
 
 # ——————————————————————————————————————————————————————————————
 # Sistema de Aprendizaje Adaptativo
@@ -668,47 +672,29 @@ def generate_shifts_coverage_corrected():
 
     start_hours = [h for h in start_hours if 0 <= h <= 23.5]
 
-    # Perfil JEAN Personalizado: generar patrones directos y retornar
+    # Perfil JEAN Personalizado: leer patrones desde JSON y retornar
     if optimization_profile == "JEAN Personalizado":
-        global break_from_start, break_from_end
-        orig_start = break_from_start
-        orig_end = break_from_end
+        global template_cfg
+        shifts_coverage = load_shift_patterns(
+            template_cfg,
+            start_hours=start_hours,
+            break_from_start=break_from_start,
+            break_from_end=break_from_end,
+        )
 
-        if use_ft:
-            break_from_start = ft_break_from_start
-            break_from_end = ft_break_from_end
-            for start_hour in start_hours:
-                for working_combo in combinations(ACTIVE_DAYS, ft_work_days):
-                    pattern = generate_weekly_pattern(
-                        start_hour,
-                        ft_shift_hours,
-                        list(working_combo),
-                        None,
-                        ft_break_duration,
-                    )
-                    shift_name = f"FT_CUST_{start_hour:04.1f}_DAYS{''.join(map(str, working_combo))}"
-                    shifts_coverage[shift_name] = pattern
-
-        if use_pt:
-            break_from_start = pt_break_from_start
-            break_from_end = pt_break_from_end
-            for start_hour in start_hours:
-                for working_combo in combinations(ACTIVE_DAYS, pt_work_days):
-                    pattern = generate_weekly_pattern(
-                        start_hour,
-                        pt_shift_hours,
-                        list(working_combo),
-                        None,
-                        pt_break_duration,
-                    )
-                    shift_name = f"PT_CUST_{start_hour:04.1f}_DAYS{''.join(map(str, working_combo))}"
-                    shifts_coverage[shift_name] = pattern
-
-        break_from_start = orig_start
-        break_from_end = orig_end
+        if not use_ft:
+            shifts_coverage = {
+                k: v for k, v in shifts_coverage.items() if not k.startswith("FT")
+            }
+        if not use_pt:
+            shifts_coverage = {
+                k: v for k, v in shifts_coverage.items() if not k.startswith("PT")
+            }
 
         pattern_progress.progress(1.0)
-        pattern_status.text(f"Generados {len(shifts_coverage)} patrones personalizados")
+        pattern_status.text(
+            f"Generados {len(shifts_coverage)} patrones personalizados"
+        )
         time.sleep(1)
         pattern_progress.empty()
         pattern_status.empty()
