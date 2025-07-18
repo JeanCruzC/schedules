@@ -239,6 +239,7 @@ st.sidebar.header("⚙️ Configuración")
 MAX_ITER = int(st.sidebar.number_input("Iteraciones máximas", 10, 100, 30))
 TIME_SOLVER = float(st.sidebar.number_input("Tiempo solver (s)", 60, 600, 240))
 TARGET_COVERAGE = float(st.sidebar.slider("Cobertura objetivo (%)", 95, 100, 98))
+VERBOSE = st.sidebar.checkbox("Modo verbose/debug", False)
 
 # Configuración de contratos
 st.sidebar.subheader("📋 Tipos de Contrato")
@@ -1727,7 +1728,7 @@ def optimize_single_type_improved(shifts_coverage, demand_matrix, shift_type):
     return assignments, f"{shift_type}_IMPROVED"
 
 
-def optimize_jean_search(shifts_coverage, demand_matrix, target_coverage=98.0, max_iterations=5):
+def optimize_jean_search(shifts_coverage, demand_matrix, target_coverage=98.0, max_iterations=5, verbose=False):
     """Búsqueda iterativa para el perfil JEAN sin exceso."""
     global agent_limit_factor
     original_factor = agent_limit_factor
@@ -1737,12 +1738,14 @@ def optimize_jean_search(shifts_coverage, demand_matrix, target_coverage=98.0, m
     best_coverage = 0
 
     factor = agent_limit_factor
-    for _ in range(max_iterations):
+    for i in range(max_iterations):
         agent_limit_factor = factor
         assignments, method = optimize_with_precision_targeting(shifts_coverage, demand_matrix)
         results = analyze_results(assignments, shifts_coverage, demand_matrix)
+        cov = results["coverage_percentage"] if results else 0
+        if verbose:
+            st.info(f"Iteración {i+1}: factor {factor}, cobertura {cov:.1f}%")
         if results:
-            cov = results["coverage_percentage"]
             if cov > best_coverage or not best_assignments:
                 best_assignments, best_method, best_coverage = assignments, method, cov
             if results["overstaffing"] == 0 and cov >= target_coverage:
@@ -1758,7 +1761,7 @@ def optimize_schedule_iterative(shifts_coverage, demand_matrix):
     if PULP_AVAILABLE:
         if optimization_profile == "JEAN":
             st.info("🔍 **Búsqueda JEAN**: cobertura sin exceso")
-            return optimize_jean_search(shifts_coverage, demand_matrix)
+            return optimize_jean_search(shifts_coverage, demand_matrix, verbose=VERBOSE)
         if use_ft and use_pt:
             st.info("🏢⏰ **Estrategia 2 Fases**: FT sin exceso → PT para completar")
             return optimize_ft_then_pt_strategy(shifts_coverage, demand_matrix)
