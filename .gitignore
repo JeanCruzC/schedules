@@ -1,0 +1,16 @@
+# Python bytecode
+*.pyc
+
+# Cache directories
+__pycache__/
+
+# Generated JSON files
+optimization_learning.json
+learning_history.json
+
+# Virtual environments
+venv/
+.env/
+.venv/
+env/
+
