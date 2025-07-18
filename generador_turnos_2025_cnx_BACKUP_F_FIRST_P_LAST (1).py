@@ -362,20 +362,41 @@ elif optimization_profile == "JEAN Personalizado":
     excess_penalty = jean_cfg["excess_penalty"]
     peak_bonus = jean_cfg["peak_bonus"]
     critical_bonus = jean_cfg["critical_bonus"]
-    custom_work_days = st.sidebar.slider("Días laborables por semana", 1, 7, 5)
-    custom_shift_hours = st.sidebar.slider("Horas de turno", 4, 12, 8)
-    break_duration = st.sidebar.slider("Duración del break (h)", 1, 3, 1)
-    break_from_start = st.sidebar.slider(
-        "Break desde inicio (horas)",
+
+    st.sidebar.markdown("**Full Time Configuration**")
+    ft_work_days = st.sidebar.slider("Días laborables FT", 1, 7, 5)
+    ft_shift_hours = st.sidebar.slider("Horas de turno FT", 4, 12, 8)
+    ft_break_duration = st.sidebar.slider("Duración del break FT (h)", 1, 3, 1)
+    ft_break_from_start = st.sidebar.slider(
+        "Break desde inicio FT (horas)",
         min_value=1.0,
-        max_value=float(max(1, custom_shift_hours - 1)),
+        max_value=float(max(1, ft_shift_hours - 1)),
         value=2.0,
         step=0.5,
     )
-    break_from_end = st.sidebar.slider(
-        "Break antes del fin (horas)",
+    ft_break_from_end = st.sidebar.slider(
+        "Break antes del fin FT (horas)",
         min_value=1.0,
-        max_value=float(max(1, custom_shift_hours - 1)),
+        max_value=float(max(1, ft_shift_hours - 1)),
+        value=2.0,
+        step=0.5,
+    )
+
+    st.sidebar.markdown("**Part Time Configuration**")
+    pt_work_days = st.sidebar.slider("Días laborables PT", 1, 7, 5)
+    pt_shift_hours = st.sidebar.slider("Horas de turno PT", 4, 12, 6)
+    pt_break_duration = st.sidebar.slider("Duración del break PT (h)", 1, 3, 1)
+    pt_break_from_start = st.sidebar.slider(
+        "Break desde inicio PT (horas)",
+        min_value=1.0,
+        max_value=float(max(1, pt_shift_hours - 1)),
+        value=2.0,
+        step=0.5,
+    )
+    pt_break_from_end = st.sidebar.slider(
+        "Break antes del fin PT (horas)",
+        min_value=1.0,
+        max_value=float(max(1, pt_shift_hours - 1)),
         value=2.0,
         step=0.5,
     )
@@ -389,9 +410,9 @@ else:
     peak_bonus = config["peak_bonus"]
     critical_bonus = config["critical_bonus"]
 
-    custom_work_days = 0
-    custom_shift_hours = 0
-    break_duration = 1
+    ft_work_days = pt_work_days = 0
+    ft_shift_hours = pt_shift_hours = 0
+    ft_break_duration = pt_break_duration = 1
     # break_from_start and break_from_end already defined earlier
 
 
@@ -657,17 +678,42 @@ def generate_shifts_coverage_corrected():
 
     # Perfil JEAN Personalizado: generar patrones directos y retornar
     if optimization_profile == "JEAN Personalizado":
-        for start_hour in start_hours:
-            for working_combo in combinations(ACTIVE_DAYS, custom_work_days):
-                pattern = generate_weekly_pattern(
-                    start_hour,
-                    custom_shift_hours,
-                    list(working_combo),
-                    None,
-                    break_duration,
-                )
-                shift_name = f"CUST_{start_hour:04.1f}_DAYS{''.join(map(str, working_combo))}"
-                shifts_coverage[shift_name] = pattern
+        global break_from_start, break_from_end
+        orig_start = break_from_start
+        orig_end = break_from_end
+
+        if use_ft:
+            break_from_start = ft_break_from_start
+            break_from_end = ft_break_from_end
+            for start_hour in start_hours:
+                for working_combo in combinations(ACTIVE_DAYS, ft_work_days):
+                    pattern = generate_weekly_pattern(
+                        start_hour,
+                        ft_shift_hours,
+                        list(working_combo),
+                        None,
+                        ft_break_duration,
+                    )
+                    shift_name = f"FT_CUST_{start_hour:04.1f}_DAYS{''.join(map(str, working_combo))}"
+                    shifts_coverage[shift_name] = pattern
+
+        if use_pt:
+            break_from_start = pt_break_from_start
+            break_from_end = pt_break_from_end
+            for start_hour in start_hours:
+                for working_combo in combinations(ACTIVE_DAYS, pt_work_days):
+                    pattern = generate_weekly_pattern(
+                        start_hour,
+                        pt_shift_hours,
+                        list(working_combo),
+                        None,
+                        pt_break_duration,
+                    )
+                    shift_name = f"PT_CUST_{start_hour:04.1f}_DAYS{''.join(map(str, working_combo))}"
+                    shifts_coverage[shift_name] = pattern
+
+        break_from_start = orig_start
+        break_from_end = orig_end
 
         pattern_progress.progress(1.0)
         pattern_status.text(f"Generados {len(shifts_coverage)} patrones personalizados")
