@@ -672,7 +672,6 @@ def generate_shifts_coverage_corrected():
 
     # Perfil JEAN Personalizado: leer patrones desde JSON y retornar
     if optimization_profile == "JEAN Personalizado":
-        global template_cfg
         shifts_coverage = load_shift_patterns(
             template_cfg,
             start_hours=start_hours,
