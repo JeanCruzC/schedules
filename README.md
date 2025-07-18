@@ -118,3 +118,11 @@ Example `examples/shift_config_v2.json`:
   ]
 }
 ```
+
+## Testing
+
+After installing the dependencies, run the test suite with:
+
+```bash
+PYTHONPATH=. pytest -q
+```
