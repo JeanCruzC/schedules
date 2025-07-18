@@ -68,3 +68,7 @@ Example `shift_config_template.json`:
 ```
 
 Any missing field in the template defaults to the standard slider values.
+
+An additional example is available at `examples/shift_config.json`. It
+demonstrates how to define a set of arbitrary shift segments under the key
+`FT_12_9_6` using three segment durations: 12 h, 9 h and 6 h.
