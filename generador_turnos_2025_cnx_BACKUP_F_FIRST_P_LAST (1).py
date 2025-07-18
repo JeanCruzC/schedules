@@ -31,8 +31,8 @@ def load_learning_data():
         if os.path.exists("optimization_learning.json"):
             with open("optimization_learning.json", 'r') as f:
                 return json.load(f)
-    except:
-        pass
+    except Exception as e:
+        st.warning(f"Error al cargar el aprendizaje: {e}")
     return {"executions": [], "best_params": {}, "stats": {}}
 
 def save_learning_data(data):
@@ -533,8 +533,8 @@ def load_learning_history():
         if os.path.exists('learning_history.json'):
             with open('learning_history.json', 'r') as f:
                 return json.load(f)
-    except:
-        pass
+    except Exception as e:
+        st.warning(f"No se pudo cargar el historial de aprendizaje: {e}")
     return {}
 
 def save_learning_history(history):
@@ -542,8 +542,8 @@ def save_learning_history(history):
     try:
         with open('learning_history.json', 'w') as f:
             json.dump(history, f, indent=2)
-    except:
-        pass
+    except Exception as e:
+        st.warning(f"No se pudo guardar el historial de aprendizaje: {e}")
 
 def get_adaptive_parameters(demand_signature, learning_history):
     """Obtiene parámetros adaptativos basados en el historial"""
@@ -2299,14 +2299,16 @@ def export_detailed_schedule(assignments, shifts_coverage):
             shift_type = 'FT'
             try:
                 shift_duration = int(parts[0][2:])  # FT8 -> 8
-            except:
+            except ValueError as e:
+                st.warning(f"Duración de turno no válida en {shift_name}: {e}")
                 shift_duration = 8
             total_hours = shift_duration + 1
         elif shift_name.startswith('PT'):
             shift_type = 'PT'
             try:
                 shift_duration = int(parts[0][2:])  # PT4 -> 4
-            except:
+            except ValueError as e:
+                st.warning(f"Duración de turno no válida en {shift_name}: {e}")
                 shift_duration = 4
             total_hours = shift_duration
         else:
