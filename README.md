@@ -36,4 +36,7 @@ déficit siempre que la cobertura alcance el objetivo (al menos 98 %).
 
 ## Perfil JEAN Personalizado
 
-Este modo solo permite elegir los días laborables por semana, la duración diaria del turno y la ventana de break. El resto de parámetros del solver se fijan automáticamente según el perfil **JEAN**.
+Permite configurar de forma independiente los turnos **Full Time** y **Part Time**.
+Puedes ajustar los días laborables, la duración de la jornada y la ventana de
+break para cada tipo. El resto de parámetros del solver se fijan automáticamente
+según el perfil **JEAN**.
