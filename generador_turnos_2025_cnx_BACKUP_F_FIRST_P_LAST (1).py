@@ -1729,28 +1729,39 @@ def optimize_single_type_improved(shifts_coverage, demand_matrix, shift_type):
 
 
 def optimize_jean_search(shifts_coverage, demand_matrix, target_coverage=98.0, max_iterations=5, verbose=False):
-    """Búsqueda iterativa para el perfil JEAN sin exceso."""
+    """Búsqueda iterativa para el perfil JEAN minimizando exceso y déficit."""
     global agent_limit_factor
     original_factor = agent_limit_factor
 
     best_assignments = {}
     best_method = ""
+    best_score = float("inf")
     best_coverage = 0
 
     factor = agent_limit_factor
-    for i in range(max_iterations):
+    iteration = 0
+    while iteration < max_iterations and factor >= 1:
         agent_limit_factor = factor
         assignments, method = optimize_with_precision_targeting(shifts_coverage, demand_matrix)
         results = analyze_results(assignments, shifts_coverage, demand_matrix)
-        cov = results["coverage_percentage"] if results else 0
-        if verbose:
-            st.info(f"Iteración {i+1}: factor {factor}, cobertura {cov:.1f}%")
         if results:
-            if cov > best_coverage or not best_assignments:
+            cov = results["coverage_percentage"]
+            score = results["overstaffing"] + results["understaffing"]
+            if verbose:
+                st.info(f"Iteración {iteration + 1}: factor {factor}, cobertura {cov:.1f}%, score {score:.1f}")
+
+            if cov >= target_coverage:
+                if score < best_score or not best_assignments:
+                    best_assignments, best_method = assignments, method
+                    best_score = score
+                    best_coverage = cov
+                else:
+                    break
+            elif cov > best_coverage and not best_assignments:
                 best_assignments, best_method, best_coverage = assignments, method, cov
-            if results["overstaffing"] == 0 and cov >= target_coverage:
-                break
+
         factor = max(1, int(factor * 0.9))
+        iteration += 1
 
     agent_limit_factor = original_factor
     return best_assignments, best_method
