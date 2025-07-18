@@ -385,7 +385,9 @@ elif optimization_profile == "JEAN Personalizado":
     st.sidebar.markdown("**Part Time Configuration**")
     pt_work_days = st.sidebar.slider("Días laborables PT", 1, 7, 5)
     pt_shift_hours = st.sidebar.slider("Horas de turno PT", 4, 12, 6)
-    pt_break_duration = st.sidebar.slider("Duración del break PT (h)", 1, 3, 1)
+    pt_break_duration = st.sidebar.slider(
+        "Duración del break PT (h)", 0, 3, 1
+    )
     pt_break_from_start = st.sidebar.slider(
         "Break desde inicio PT (horas)",
         min_value=1.0,
