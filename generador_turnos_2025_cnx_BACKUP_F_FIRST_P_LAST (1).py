@@ -298,6 +298,7 @@ optimization_profile = st.sidebar.selectbox(
         "Cobertura Perfecta",
         "100% Exacto",
         "JEAN",
+        "JEAN Personalizado",
         "Personalizado",
         "Aprendizaje Adaptativo"
     ],
@@ -339,6 +340,30 @@ if optimization_profile == "Personalizado":
     peak_bonus = st.sidebar.slider("Bonificación horas pico", 1.0, 3.0, 1.5, step=0.1)
     critical_bonus = st.sidebar.slider("Bonificación días críticos", 1.0, 3.0, 2.0, step=0.1)
 
+elif optimization_profile == "JEAN Personalizado":
+    st.sidebar.subheader("⚙️ JEAN Personalizado")
+    agent_limit_factor = st.sidebar.slider("Factor límite agentes", 15, 35, 30)
+    excess_penalty = st.sidebar.slider("Penalización exceso", 0.1, 5.0, 5.0, step=0.1)
+    peak_bonus = st.sidebar.slider("Bonificación horas pico", 1.0, 3.0, 2.0, step=0.1)
+    critical_bonus = st.sidebar.slider("Bonificación días críticos", 1.0, 3.0, 2.5, step=0.1)
+    custom_work_days = st.sidebar.slider("Días laborables por semana", 1, 7, 5)
+    custom_shift_hours = st.sidebar.slider("Horas de turno", 4, 12, 8)
+    break_duration = st.sidebar.slider("Duración del break (h)", 1, 3, 1)
+    break_from_start = st.sidebar.slider(
+        "Break desde inicio (horas)",
+        min_value=1.0,
+        max_value=float(max(1, custom_shift_hours - 1)),
+        value=2.0,
+        step=0.5,
+    )
+    break_from_end = st.sidebar.slider(
+        "Break antes del fin (horas)",
+        min_value=1.0,
+        max_value=float(max(1, custom_shift_hours - 1)),
+        value=2.0,
+        step=0.5,
+    )
+
 else:
     # Configuraciones predefinidas
     profiles = {
@@ -360,6 +385,11 @@ else:
     excess_penalty = config["excess_penalty"]
     peak_bonus = config["peak_bonus"]
     critical_bonus = config["critical_bonus"]
+
+    custom_work_days = 0
+    custom_shift_hours = 0
+    break_duration = 1
+    # break_from_start and break_from_end already defined earlier
 
 
 
@@ -619,8 +649,29 @@ def generate_shifts_coverage_corrected():
     for h in range(0, 24):  # Todas las horas del día
         start_hours.append(h)
         start_hours.append(h + 0.5)  # Medios horarios
-    
+
     start_hours = [h for h in start_hours if 0 <= h <= 23.5]
+
+    # Perfil JEAN Personalizado: generar patrones directos y retornar
+    if optimization_profile == "JEAN Personalizado":
+        for start_hour in start_hours:
+            for working_combo in combinations(ACTIVE_DAYS, custom_work_days):
+                pattern = generate_weekly_pattern(
+                    start_hour,
+                    custom_shift_hours,
+                    list(working_combo),
+                    None,
+                    break_duration,
+                )
+                shift_name = f"CUST_{start_hour:04.1f}_DAYS{''.join(map(str, working_combo))}"
+                shifts_coverage[shift_name] = pattern
+
+        pattern_progress.progress(1.0)
+        pattern_status.text(f"Generados {len(shifts_coverage)} patrones personalizados")
+        time.sleep(1)
+        pattern_progress.empty()
+        pattern_status.empty()
+        return shifts_coverage
     
     # Calcular total de patrones expandido
     total_patterns = 0
@@ -832,7 +883,7 @@ def optimize_ft_phase(ft_shifts, demand_matrix):
             prob += coverage - excess_vars[(day, hour)] <= demand
     
     # Límite de exceso en fase FT según perfil
-    if optimization_profile == "JEAN":
+    if optimization_profile in ("JEAN", "JEAN Personalizado"):
         prob += total_excess == 0
     elif excess_penalty > 5:  # Perfiles estrictos
         prob += total_excess <= demand_matrix.sum() * 0.02  # 2% máximo
@@ -920,7 +971,7 @@ def optimize_pt_phase(pt_shifts, remaining_demand):
             prob += coverage - excess_vars[(day, hour)] <= demand
 
     # Límite de exceso en fase PT según perfil
-    if optimization_profile == "JEAN":
+    if optimization_profile in ("JEAN", "JEAN Personalizado"):
         prob += total_excess == 0
     elif excess_penalty > 5:
         prob += total_excess <= remaining_demand.sum() * 0.02
@@ -1135,7 +1186,7 @@ def optimize_with_precision_targeting(shifts_coverage, demand_matrix):
                     prob += coverage <= 1  # Permitir máximo 1 agente en horas sin demanda
         
         # Límite dinámico de agentes ajustado según perfil
-        if optimization_profile == "JEAN":
+        if optimization_profile in ("JEAN", "JEAN Personalizado"):
             dynamic_agent_limit = max(
                 int(total_demand / max(1, agent_limit_factor)),
                 int(peak_demand * 1.1),
@@ -1331,7 +1382,7 @@ def optimize_pt_complete(pt_shifts, remaining_demand):
     prob += total_deficit * 1000 + total_excess * (excess_penalty * 20) + total_pt_agents * 1
 
     # Para el perfil JEAN no se permite ningún exceso
-    if optimization_profile == "JEAN":
+    if optimization_profile in ("JEAN", "JEAN Personalizado"):
         prob += total_excess == 0
     
     # Restricciones de cobertura
@@ -1722,7 +1773,7 @@ def optimize_jean_search(shifts_coverage, demand_matrix, target_coverage=98.0, m
 def optimize_schedule_iterative(shifts_coverage, demand_matrix):
     """Función principal con estrategia FT primero + PT después"""
     if PULP_AVAILABLE:
-        if optimization_profile == "JEAN":
+        if optimization_profile in ("JEAN", "JEAN Personalizado"):
             st.info("🔍 **Búsqueda JEAN**: cobertura sin exceso")
             return optimize_jean_search(shifts_coverage, demand_matrix, verbose=VERBOSE)
         if use_ft and use_pt:
@@ -1896,7 +1947,7 @@ def evaluate_solution_quality(coverage_matrix, demand_matrix):
     quality_score = (100 - coverage_percentage) + (excess * 0.1) + ((1 - efficiency) * 50)
     return quality_score
 
-def generate_weekly_pattern(start_hour, duration, working_days, dso_day=None):
+def generate_weekly_pattern(start_hour, duration, working_days, dso_day=None, break_len=1):
     """Genera patrón semanal con breaks inteligentes"""
     pattern = np.zeros((7, 24))
     
@@ -1918,7 +1969,9 @@ def generate_weekly_pattern(start_hour, duration, working_days, dso_day=None):
                 break_hour = break_start_idx
             
             if break_hour < 24:
-                pattern[day, break_hour] = 0
+                for b in range(int(break_len)):
+                    idx = (break_hour + b) % 24
+                    pattern[day, idx] = 0
     
     return pattern.flatten()
 
@@ -1991,7 +2044,7 @@ def get_valid_break_times(start_hour, duration):
     
     return valid_breaks[:7]  # Máximo 7 opciones para no saturar
 
-def generate_weekly_pattern_with_break(start_hour, duration, working_days, dso_day, break_start):
+def generate_weekly_pattern_with_break(start_hour, duration, working_days, dso_day, break_start, break_len=1):
     """Genera patrón semanal con break específico - CORREGIDO para turnos que cruzan medianoche"""
     pattern = np.zeros((7, 24))
     
@@ -2004,7 +2057,7 @@ def generate_weekly_pattern_with_break(start_hour, duration, working_days, dso_d
             hour_idx = int(start_hour + h) % 24
             pattern[day, hour_idx] = 1
         
-        # Aplicar break de 1 hora (asegurar que esté en rango válido)
+        # Aplicar break de `break_len` horas (asegurar que esté en rango válido)
         break_hour = int(break_start) % 24
         # Solo aplicar break si está dentro del turno
         work_start = int(start_hour) % 24
@@ -2013,10 +2066,12 @@ def generate_weekly_pattern_with_break(start_hour, duration, working_days, dso_d
         # Verificar si el break está en el rango de trabajo
         if work_start <= work_end:  # Turno no cruza medianoche
             if work_start <= break_hour < work_end:
-                pattern[day, break_hour] = 0
+                for b in range(int(break_len)):
+                    pattern[day, (break_hour + b) % 24] = 0
         else:  # Turno cruza medianoche
             if break_hour >= work_start or break_hour < work_end:
-                pattern[day, break_hour] = 0
+                for b in range(int(break_len)):
+                    pattern[day, (break_hour + b) % 24] = 0
     
     return pattern.flatten()
 
@@ -2049,7 +2104,7 @@ def generate_weekly_pattern_pt5(start_hour, working_days):
 
     return pattern.flatten()
 
-def generate_weekly_pattern_10h8(start_hour, working_days, eight_hour_day):
+def generate_weekly_pattern_10h8(start_hour, working_days, eight_hour_day, break_len=1):
     """Genera patrón con cuatro días de 10h y uno de 8h"""
     pattern = np.zeros((7, 24))
 
@@ -2067,7 +2122,8 @@ def generate_weekly_pattern_10h8(start_hour, working_days, eight_hour_day):
         else:
             break_hour = break_start_idx
         if break_hour < 24:
-            pattern[day, break_hour] = 0
+            for b in range(int(break_len)):
+                pattern[day, (break_hour + b) % 24] = 0
 
     return pattern.flatten()
 
