@@ -21,6 +21,7 @@ This project creates optimized work schedules using Streamlit.
    When prompted, upload the demand Excel file (see assumption below).
 
 3. Choose the **JEAN** profile from the sidebar to minimise the sum of excess and deficit while keeping coverage near 100%.
+4. Select **JEAN Personalizado** to define custom shift rules such as days worked per week, hours per day and break placement.
 
 ## Excel Input
 
@@ -32,3 +33,7 @@ Incluye un perfil de optimización llamado **JEAN** que minimiza la suma de
 exceso y déficit de agentes. El algoritmo prueba diferentes valores de
 `agent_limit_factor` y conserva la asignación con la menor suma de exceso y
 déficit siempre que la cobertura alcance el objetivo (al menos 98 %).
+
+## Perfil JEAN Personalizado
+
+Permite especificar el número de días laborables por semana, la duración diaria del turno y la ventana de break. Los patrones generados utilizarán estas configuraciones antes de ejecutar la optimización.
