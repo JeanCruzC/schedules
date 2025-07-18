@@ -41,3 +41,30 @@ Puedes ajustar los días laborables, la duración de la jornada y la ventana de
 break para cada tipo. El resto de parámetros del solver se fijan automáticamente
 según el perfil **JEAN**. Para Part Time la duración del break puede fijarse en
 0 horas si así lo requiere la normativa.
+
+## JSON Template
+
+The **JEAN Personalizado** sidebar allows loading a configuration template in
+JSON format. Upload a file through the *Plantilla JSON* control to pre-fill all
+shift parameters and hide the sliders.
+
+Example `shift_config_template.json`:
+
+```json
+{
+  "use_ft": true,
+  "use_pt": true,
+  "ft_work_days": 5,
+  "ft_shift_hours": 8,
+  "ft_break_duration": 1,
+  "ft_break_from_start": 2,
+  "ft_break_from_end": 2,
+  "pt_work_days": 5,
+  "pt_shift_hours": 6,
+  "pt_break_duration": 1,
+  "pt_break_from_start": 2,
+  "pt_break_from_end": 2
+}
+```
+
+Any missing field in the template defaults to the standard slider values.
