@@ -21,7 +21,7 @@ This project creates optimized work schedules using Streamlit.
    When prompted, upload the demand Excel file (see assumption below).
 
 3. Choose the **JEAN** profile from the sidebar to minimise the sum of excess and deficit while keeping coverage near 100%.
-4. Select **JEAN Personalizado** to choose the working days, hours per day and break placement. All other solver parameters use the JEAN profile automatically.
+4. Select **JEAN Personalizado** and upload a JSON file describing the custom shifts. The solver will not run without this file.
 
 ## Excel Input
 
@@ -44,27 +44,36 @@ según el perfil **JEAN**. Para Part Time la duración del break puede fijarse e
 
 ## JSON Template
 
-The **JEAN Personalizado** sidebar allows loading a configuration template in
-JSON format. Upload a file through the *Plantilla JSON* control to pre-fill all
-shift parameters and hide the sliders.
-
-Example `shift_config_template.json`:
+In **JEAN Personalizado** the upload of a JSON file is required. The file must
+describe the shifts to be generated using the following schema:
 
 ```json
 {
-  "use_ft": true,
-  "use_pt": true,
-  "ft_work_days": 5,
-  "ft_shift_hours": 8,
-  "ft_break_duration": 1,
-  "ft_break_from_start": 2,
-  "ft_break_from_end": 2,
-  "pt_work_days": 5,
-  "pt_shift_hours": 6,
-  "pt_break_duration": 1,
-  "pt_break_from_start": 2,
-  "pt_break_from_end": 2
+  "shifts": {
+    "<name>": {
+      "segments": [[<start>, <end>], ...],
+      "break": [<start>, <end>]
+    }
+  }
 }
 ```
 
-Any missing field in the template defaults to the standard slider values.
+- `segments` lists the working periods for each shift.
+- `break` indicates the break window separating segments.
+
+Example `shift_templates/FT_12_9_6.json`:
+
+```json
+{
+  "shifts": {
+    "FT_12_9_6": {
+      "segments": [[9, 15], [16, 21]],
+      "break": [15, 16]
+    }
+  }
+}
+```
+
+Load the file using the *Plantilla JSON* control. The solver reads every entry
+in `shifts` and builds weekly patterns according to the provided segments while
+respecting the declared break.
