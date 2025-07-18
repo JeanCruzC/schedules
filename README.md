@@ -20,7 +20,7 @@ This project creates optimized work schedules using Streamlit.
 
    When prompted, upload the demand Excel file (see assumption below).
 
-3. Choose the **JEAN** profile from the sidebar to minimize overstaffing while keeping coverage near 100%.
+3. Choose the **JEAN** profile from the sidebar to minimise the sum of excess and deficit while keeping coverage near 100%.
 
 ## Excel Input
 
@@ -28,7 +28,7 @@ The expected Excel file `Requerido.xlsx` must contain a column named `Día` with
 
 ## Perfil JEAN
 
-Incluye un perfil de optimización llamado **JEAN** que busca el equilibrio
-perfecto entre exceso y déficit. El algoritmo ahora prueba varias
-configuraciones reduciendo progresivamente el `agent_limit_factor` hasta
-lograr la mejor cobertura posible sin generar exceso (al menos 98 %).
+Incluye un perfil de optimización llamado **JEAN** que minimiza la suma de
+exceso y déficit de agentes. El algoritmo prueba diferentes valores de
+`agent_limit_factor` y conserva la asignación con la menor suma de exceso y
+déficit siempre que la cobertura alcance el objetivo (al menos 98 %).
