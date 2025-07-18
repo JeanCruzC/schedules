@@ -250,12 +250,9 @@ use_pt = st.sidebar.checkbox("Part Time (24h)", True, key="use_pt_main")
 if use_ft:
     st.sidebar.subheader("⏰ Turnos FT Permitidos")
     allow_8h = st.sidebar.checkbox("8 horas (6 días)", True, key="allow_8h_main")
-    allow_8h45 = st.sidebar.checkbox("8h15min con break 45min (6 días)", False, key="allow_8h45_main")
-    allow_9h = st.sidebar.checkbox("9 horas (6 días)", True, key="allow_9h_main")
-    allow_10h = st.sidebar.checkbox("10 horas (5 días)", True, key="allow_10h_main")
     allow_10h8 = st.sidebar.checkbox("10h + día de 8h (5 días)", False, key="allow_10h8_main")
 else:
-    allow_8h = allow_8h45 = allow_9h = allow_10h = allow_10h8 = False
+    allow_8h = allow_10h8 = False
 
 # Configuración de breaks MEJORADA
 st.sidebar.subheader("☕ Configuración de Breaks")
@@ -630,12 +627,6 @@ def generate_shifts_coverage_corrected():
     if use_ft:
         if allow_8h:
             total_patterns += len(start_hours) * len(ACTIVE_DAYS)
-        if allow_8h45:
-            total_patterns += len(start_hours) * len(ACTIVE_DAYS)
-        if allow_9h:
-            total_patterns += len(start_hours[::2]) * len(ACTIVE_DAYS)
-        if allow_10h:
-            total_patterns += len(start_hours[::2]) * len(ACTIVE_DAYS)
         if allow_10h8:
             total_patterns += len(start_hours[::2]) * len(ACTIVE_DAYS) * 5
     if use_pt:
@@ -667,46 +658,7 @@ def generate_shifts_coverage_corrected():
                             pattern_progress.progress(current_patterns / total_patterns)
                             pattern_status.text(f"Generando patrones FT8: {current_patterns}/{total_patterns}")
         
-        # 8h15min con break 45min - máximo 5 días de trabajo
-        if allow_8h45:
-            for start_hour in start_hours:
-                for dso_day in ACTIVE_DAYS:
-                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:5]
-                    if len(working_days) >= 5 and 8.25 * len(working_days) <= 48:
-                        weekly_pattern = generate_weekly_pattern_8h45(
-                            start_hour, working_days, dso_day
-                        )
-                        shift_name = f"FT8h45_{start_hour:04.1f}_DSO{dso_day}"
-                        shifts_coverage[shift_name] = weekly_pattern
-                        
-                        current_patterns += 1
-                        if total_patterns > 0:
-                            pattern_progress.progress(current_patterns / total_patterns)
-                            pattern_status.text(f"Generando patrones FT8h45: {current_patterns}/{total_patterns}")
-        
-        # 9 horas - máximo 5 días de trabajo
-        if allow_9h:
-            for start_hour in start_hours[::2]:
-                for dso_day in ACTIVE_DAYS:
-                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:5]
-                    if len(working_days) >= 5 and 9 * len(working_days) <= 48:
-                        weekly_pattern = generate_weekly_pattern(
-                            start_hour, 9, working_days, dso_day
-                        )
-                        shift_name = f"FT9_{start_hour:04.1f}_DSO{dso_day}"
-                        shifts_coverage[shift_name] = weekly_pattern
-        
-        # 10 horas - máximo 4 días de trabajo
-        if allow_10h:
-            for start_hour in start_hours[::2]:
-                for dso_day in ACTIVE_DAYS:
-                    working_days = [d for d in ACTIVE_DAYS if d != dso_day][:4]
-                    if len(working_days) >= 4 and 10 * len(working_days) <= 48:
-                        weekly_pattern = generate_weekly_pattern(
-                            start_hour, 10, working_days, dso_day
-                        )
-                        shift_name = f"FT10_{start_hour:04.1f}_DSO{dso_day}"
-                        shifts_coverage[shift_name] = weekly_pattern
+
 
         # 10h + un día de 8h - 5 días de trabajo
         if allow_10h8:
@@ -1991,27 +1943,7 @@ def generate_shift_patterns():
                             dso_suffix = f"_DSO{dso_day}" if dso_day is not None else ""
                             shifts_coverage[f"FT8_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}_BRK{break_start:04.1f}{dso_suffix}"] = pattern
         
-        if allow_9h:
-            for start_hour in start_hours[::2]:
-                for working_combo in combinations(ACTIVE_DAYS, min(6, len(ACTIVE_DAYS))):
-                    non_working = [d for d in ACTIVE_DAYS if d not in working_combo]
-                    for dso_day in non_working + [None]:
-                        break_options = get_valid_break_times(start_hour, 9)
-                        for break_start in break_options:
-                            pattern = generate_weekly_pattern_with_break(start_hour, 9, list(working_combo), dso_day, break_start)
-                            dso_suffix = f"_DSO{dso_day}" if dso_day is not None else ""
-                            shifts_coverage[f"FT9_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}_BRK{break_start:04.1f}{dso_suffix}"] = pattern
-        
-        if allow_10h:
-            for start_hour in start_hours[::2]:
-                for working_combo in combinations(ACTIVE_DAYS, min(5, len(ACTIVE_DAYS))):
-                    non_working = [d for d in ACTIVE_DAYS if d not in working_combo]
-                    for dso_day in non_working + [None]:
-                        break_options = get_valid_break_times(start_hour, 10)
-                        for break_start in break_options:
-                            pattern = generate_weekly_pattern_with_break(start_hour, 10, list(working_combo), dso_day, break_start)
-                            dso_suffix = f"_DSO{dso_day}" if dso_day is not None else ""
-                            shifts_coverage[f"FT10_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}_BRK{break_start:04.1f}{dso_suffix}"] = pattern
+
     
     # TURNOS PART TIME (sin break por ser cortos)
     if use_pt:
@@ -2139,12 +2071,6 @@ def generate_weekly_pattern_10h8(start_hour, working_days, eight_hour_day):
 
     return pattern.flatten()
 
-def generate_weekly_pattern_8h45(start_hour, working_days, dso_day=None):
-    """Genera patrón semanal de 8h45 utilizando un break estándar"""
-    break_start = max(1.0, break_from_start)
-    return generate_weekly_pattern_with_break(start_hour, 9, working_days, dso_day, break_start)
-
-
 
 
 
@@ -2262,11 +2188,7 @@ def export_detailed_schedule(assignments, shifts_coverage):
         start_hour = float(parts[1])
 
         # Determinar tipo y duración del turno
-        if shift_name.startswith('FT8h45'):
-            shift_type = 'FT'
-            shift_duration = 8.25
-            total_hours = 9
-        elif shift_name.startswith('FT10p8'):
+        if shift_name.startswith('FT10p8'):
             shift_type = 'FT'
             shift_duration = 10
             total_hours = shift_duration + 1
@@ -2296,15 +2218,7 @@ def export_detailed_schedule(assignments, shifts_coverage):
 
                 if len(work_hours) > 0:
                     # Calcular horario específico para cada tipo
-                    if shift_name.startswith('FT8h45'):
-                        # 8h15min = 8:15, no 9:00
-                        end_minutes = int((shift_duration % 1) * 60)  # 0.25 * 60 = 15 min
-                        end_hour_int = int(start_hour + shift_duration)
-                        if end_hour_int >= 24:
-                            horario = f"{int(start_hour):02d}:00-{end_hour_int-24:02d}:{end_minutes:02d}+1"
-                        else:
-                            horario = f"{int(start_hour):02d}:00-{end_hour_int:02d}:{end_minutes:02d}"
-                    elif shift_name.startswith('PT'):
+                    if shift_name.startswith('PT'):
                         # Para PT usar las horas reales trabajadas según el patrón
                         start_idx = int(start_hour)
                         end_idx = (int(work_hours[-1]) + 1) % 24
@@ -2324,18 +2238,7 @@ def export_detailed_schedule(assignments, shifts_coverage):
                             horario = f"{int(start_hour):02d}:00-{end_hour:02d}:00"
 
                     # Calcular break específico
-                    if shift_name.startswith('FT8h45'):
-                        # Para 8h45, el break es de 45 minutos
-                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
-                        actual_hours = set(work_hours)
-                        break_hours = all_expected - actual_hours
-
-                        if break_hours:
-                            break_hour = min(break_hours) % 24
-                            break_time = f"{break_hour:02d}:00-{break_hour:02d}:45"  # 45 minutos
-                        else:
-                            break_time = ""
-                    elif shift_name.startswith('PT'):
+                    if shift_name.startswith('PT'):
                         break_time = ""
                     elif shift_name.startswith('FT10p8'):
                         all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
