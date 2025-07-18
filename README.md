@@ -39,4 +39,5 @@ déficit siempre que la cobertura alcance el objetivo (al menos 98 %).
 Permite configurar de forma independiente los turnos **Full Time** y **Part Time**.
 Puedes ajustar los días laborables, la duración de la jornada y la ventana de
 break para cada tipo. El resto de parámetros del solver se fijan automáticamente
-según el perfil **JEAN**.
+según el perfil **JEAN**. Para Part Time la duración del break puede fijarse en
+0 horas si así lo requiere la normativa.
