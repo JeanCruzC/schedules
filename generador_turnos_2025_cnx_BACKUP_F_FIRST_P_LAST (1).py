@@ -358,81 +358,40 @@ if optimization_profile == "Personalizado":
 
 elif optimization_profile == "JEAN Personalizado":
     st.sidebar.subheader("⚙️ JEAN Personalizado")
-    template_file = st.sidebar.file_uploader("Plantilla JSON")
+    template_file = st.sidebar.file_uploader("Plantilla JSON", type="json")
+    if not template_file:
+        st.sidebar.warning("Debe subir un archivo JSON de configuración")
+        st.stop()
+    try:
+        template_cfg = json.load(template_file)
+    except Exception as e:
+        st.sidebar.error(f"Error al leer plantilla: {e}")
+        st.stop()
+
     jean_cfg = profiles["JEAN"]
     agent_limit_factor = jean_cfg["agent_limit_factor"]
     excess_penalty = jean_cfg["excess_penalty"]
     peak_bonus = jean_cfg["peak_bonus"]
     critical_bonus = jean_cfg["critical_bonus"]
 
-    if template_file:
-        try:
-            template_cfg = json.load(template_file)
-        except Exception as e:
-            st.sidebar.error(f"Error al leer plantilla: {e}")
-            template_cfg = {}
+    use_ft = st.sidebar.checkbox(
+        "Permitir FT", template_cfg.get("use_ft", True), key="jean_use_ft"
+    )
+    use_pt = st.sidebar.checkbox(
+        "Permitir PT", template_cfg.get("use_pt", True), key="jean_use_pt"
+    )
 
-        use_ft = st.sidebar.checkbox(
-            "Permitir FT", template_cfg.get("use_ft", True), key="jean_use_ft"
-        )
-        use_pt = st.sidebar.checkbox(
-            "Permitir PT", template_cfg.get("use_pt", True), key="jean_use_pt"
-        )
+    ft_work_days = template_cfg.get("ft_work_days", 0)
+    ft_shift_hours = template_cfg.get("ft_shift_hours", 0)
+    ft_break_duration = template_cfg.get("ft_break_duration", 0)
+    ft_break_from_start = template_cfg.get("ft_break_from_start", 0.0)
+    ft_break_from_end = template_cfg.get("ft_break_from_end", 0.0)
 
-        ft_work_days = template_cfg.get("ft_work_days", 5)
-        ft_shift_hours = template_cfg.get("ft_shift_hours", 8)
-        ft_break_duration = template_cfg.get("ft_break_duration", 1)
-        ft_break_from_start = template_cfg.get("ft_break_from_start", 2.0)
-        ft_break_from_end = template_cfg.get("ft_break_from_end", 2.0)
-
-        pt_work_days = template_cfg.get("pt_work_days", 5)
-        pt_shift_hours = template_cfg.get("pt_shift_hours", 6)
-        pt_break_duration = template_cfg.get("pt_break_duration", 1)
-        pt_break_from_start = template_cfg.get("pt_break_from_start", 2.0)
-        pt_break_from_end = template_cfg.get("pt_break_from_end", 2.0)
-    else:
-        use_ft = st.sidebar.checkbox("Permitir FT", True, key="jean_use_ft")
-        use_pt = st.sidebar.checkbox("Permitir PT", True, key="jean_use_pt")
-
-        st.sidebar.markdown("**Full Time Configuration**")
-        ft_work_days = st.sidebar.slider("Días laborables FT", 1, 7, 5)
-        ft_shift_hours = st.sidebar.slider("Horas de turno FT", 4, 12, 8)
-        ft_break_duration = st.sidebar.slider("Duración del break FT (h)", 1, 3, 1)
-        ft_break_from_start = st.sidebar.slider(
-            "Break desde inicio FT (horas)",
-            min_value=1.0,
-            max_value=float(max(1, ft_shift_hours - 1)),
-            value=2.0,
-            step=0.5,
-        )
-        ft_break_from_end = st.sidebar.slider(
-            "Break antes del fin FT (horas)",
-            min_value=1.0,
-            max_value=float(max(1, ft_shift_hours - 1)),
-            value=2.0,
-            step=0.5,
-        )
-
-        st.sidebar.markdown("**Part Time Configuration**")
-        pt_work_days = st.sidebar.slider("Días laborables PT", 1, 7, 5)
-        pt_shift_hours = st.sidebar.slider("Horas de turno PT", 4, 12, 6)
-        pt_break_duration = st.sidebar.slider(
-            "Duración del break PT (h)", 0, 3, 1
-        )
-        pt_break_from_start = st.sidebar.slider(
-            "Break desde inicio PT (horas)",
-            min_value=1.0,
-            max_value=float(max(1, pt_shift_hours - 1)),
-            value=2.0,
-            step=0.5,
-        )
-        pt_break_from_end = st.sidebar.slider(
-            "Break antes del fin PT (horas)",
-            min_value=1.0,
-            max_value=float(max(1, pt_shift_hours - 1)),
-            value=2.0,
-            step=0.5,
-        )
+    pt_work_days = template_cfg.get("pt_work_days", 0)
+    pt_shift_hours = template_cfg.get("pt_shift_hours", 0)
+    pt_break_duration = template_cfg.get("pt_break_duration", 0)
+    pt_break_from_start = template_cfg.get("pt_break_from_start", 0.0)
+    pt_break_from_end = template_cfg.get("pt_break_from_end", 0.0)
 
 else:
     # Configuraciones predefinidas
