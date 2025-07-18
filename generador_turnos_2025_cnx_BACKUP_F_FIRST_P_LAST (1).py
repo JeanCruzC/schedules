@@ -14,6 +14,7 @@ import json
 import hashlib
 import os
 import re
+import json_shift_loader
 try:
     import pulp
     PULP_AVAILABLE = True
@@ -359,6 +360,7 @@ if optimization_profile == "Personalizado":
 elif optimization_profile == "JEAN Personalizado":
     st.sidebar.subheader("⚙️ JEAN Personalizado")
     template_file = st.sidebar.file_uploader("Plantilla JSON")
+    shift_pattern_file = st.sidebar.file_uploader("Patrones de turnos JSON", key="jean_shift_file")
     jean_cfg = profiles["JEAN"]
     agent_limit_factor = jean_cfg["agent_limit_factor"]
     excess_penalty = jean_cfg["excess_penalty"]
@@ -709,8 +711,23 @@ def generate_shifts_coverage_corrected():
 
     start_hours = [h for h in start_hours if 0 <= h <= 23.5]
 
-    # Perfil JEAN Personalizado: generar patrones directos y retornar
+    # Perfil JEAN Personalizado: cargar o generar patrones
     if optimization_profile == "JEAN Personalizado":
+        if shift_pattern_file is not None:
+            try:
+                loaded = json_shift_loader.generate_patterns(shift_pattern_file)
+                pattern_progress.progress(1.0)
+                pattern_status.text(f"Cargados {len(loaded)} patrones personalizados")
+                time.sleep(1)
+                pattern_progress.empty()
+                pattern_status.empty()
+                return {k: np.array(v) for k, v in loaded.items()}
+            except Exception as e:
+                st.error(f"Error al cargar patrones: {e}")
+                pattern_progress.empty()
+                pattern_status.empty()
+                return {}
+
         global break_from_start, break_from_end
         orig_start = break_from_start
         orig_end = break_from_end
