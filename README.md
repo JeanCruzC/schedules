@@ -21,11 +21,18 @@ This project creates optimized work schedules using Streamlit.
    When prompted, upload the demand Excel file (see assumption below).
 
 3. Choose the **JEAN** profile from the sidebar to minimise the sum of excess and deficit while keeping coverage near 100%.
-4. Select **JEAN Personalizado** to choose the working days, hours per day and break placement. All other solver parameters use the JEAN profile automatically.
+4. Select **JEAN Personalizado**, then upload a JSON template through the *Plantilla JSON* option to load all shift rules automatically. The sliders are hidden once the file is provided.
 
 ## Excel Input
 
-The expected Excel file `Requerido.xlsx` must contain a column named `Día` with values from 1 to 7 and a column `Suma de Agentes Requeridos Erlang` representing the hourly staffing requirements.
+The expected Excel file `Requerido.xlsx` contains at least the following columns:
+
+| Column | Description |
+|--------|-------------|
+| `Día` | Day of the week as numbers 1‑7 |
+| `Suma de Agentes Requeridos Erlang` | Hourly staffing requirement |
+
+Additional columns are ignored.
 
 ## Perfil JEAN
 
@@ -44,9 +51,9 @@ según el perfil **JEAN**. Para Part Time la duración del break puede fijarse e
 
 ## JSON Template
 
-The **JEAN Personalizado** sidebar allows loading a configuration template in
-JSON format. Upload a file through the *Plantilla JSON* control to pre-fill all
-shift parameters and hide the sliders.
+The **JEAN Personalizado** sidebar requires a configuration template in JSON
+format. Upload your file via the *Plantilla JSON* control. Once loaded, the
+sliders disappear and the shift rules are taken from the JSON data.
 
 Example `shift_config_template.json`:
 
@@ -70,5 +77,22 @@ Example `shift_config_template.json`:
 Any missing field in the template defaults to the standard slider values.
 
 An additional example is available at `examples/shift_config.json`. It
-demonstrates how to define a set of arbitrary shift segments under the key
-`FT_12_9_6` using three segment durations: 12 h, 9 h and 6 h.
+illustrates how to define multiple sets of shift lengths. The example below
+enables a standard 12‑9‑6 hour pattern for Full Time and a 6‑4 hour pattern for
+Part Time:
+
+```json
+{
+  "FT_12_9_6": [12, 9, 6],
+  "PT_6_4": [6, 4]
+}
+```
+
+## Testing
+
+Run any available unit tests with [pytest](https://docs.pytest.org/). Once the
+dependencies are installed you can simply execute:
+
+```bash
+pytest
+```
