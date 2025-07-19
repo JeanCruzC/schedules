@@ -136,12 +136,13 @@ for a complete example.
 
 ## Limiting Generated Patterns
 
-Both `load_shift_patterns()` and the internal `generate_shifts_coverage_corrected()`
-function accept an optional `max_patterns` argument. When provided, pattern
-generation stops once this limit is reached which is useful during testing
-or when exploring large configuration spaces.  The latter also supports a
-`batch_size` option that yields patterns in chunks to keep memory usage in
-check when exploring huge spaces.
+`load_shift_patterns()` and the internal `generate_shifts_coverage_corrected()`
+functions accept an optional `max_patterns` argument. When omitted the loader
+now estimates how many patterns fit in roughly 4&nbsp;GB of the available
+memory and caps generation automatically.  Patterns are generated and solved
+in batches, sorted by a quick heuristic score, so even 50&nbsp;000+ combinations
+can be handled without exhausting RAM.  `generate_shifts_coverage_corrected()`
+still honours the `batch_size` option to emit patterns in smaller chunks.
 
 ## Testing
 
