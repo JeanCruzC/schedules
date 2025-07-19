@@ -119,6 +119,10 @@ Example `examples/shift_config_v2.json`:
 }
 ```
 
+A single file may also combine the JEAN slider parameters with the
+`shifts` array in **v2** format. See `examples/shift_config_jean_v2.json`
+for a complete example.
+
 ## Testing
 
 After installing the dependencies, run the test suite with:

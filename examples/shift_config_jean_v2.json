@@ -1,0 +1,34 @@
+{
+  "use_ft": true,
+  "use_pt": true,
+  "ft_work_days": 5,
+  "ft_shift_hours": 8,
+  "ft_break_duration": 1,
+  "ft_break_from_start": 2,
+  "ft_break_from_end": 2,
+  "pt_work_days": 5,
+  "pt_shift_hours": 6,
+  "pt_break_duration": 1,
+  "pt_break_from_start": 2,
+  "pt_break_from_end": 2,
+  "shifts": [
+    {
+      "name": "FT_12_9_6",
+      "slot_duration_minutes": 30,
+      "pattern": {
+        "work_days": 6,
+        "segments": [
+          {"hours": 12, "count": 2},
+          {"hours": 9, "count": 2},
+          {"hours": 6, "count": 2}
+        ]
+      },
+      "break": {
+        "enabled": true,
+        "length_minutes": 60,
+        "earliest_after_start": 120,
+        "latest_before_end": 120
+      }
+    }
+  ]
+}
