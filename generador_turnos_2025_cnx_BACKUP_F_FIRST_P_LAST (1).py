@@ -69,6 +69,8 @@ def load_shift_patterns(
         data = cfg
 
     if slot_duration_minutes is not None:
+        if not 1 <= slot_duration_minutes <= 60:
+            raise ValueError("slot_duration_minutes must be between 1 and 60")
         if slot_duration_minutes != 60:
             raise NotImplementedError("only 60-minute slots are supported")
         if 60 % slot_duration_minutes != 0:
@@ -86,6 +88,8 @@ def load_shift_patterns(
             if slot_duration_minutes is not None
             else shift.get("slot_duration_minutes", 60)
         )
+        if not 1 <= slot_min <= 60:
+            raise ValueError("slot_duration_minutes must be between 1 and 60")
         if slot_min != 60:
             raise NotImplementedError("only 60-minute slots are supported")
         if 60 % slot_min != 0:

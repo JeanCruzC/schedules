@@ -40,8 +40,26 @@ class LoaderTest(unittest.TestCase):
             load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30)
 
     def test_max_patterns_limit(self):
-        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30, max_patterns=10)
+        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=60, max_patterns=10)
         self.assertEqual(len(data), 10)
+
+    def test_slot_duration_range_param(self):
+        with self.assertRaises(ValueError):
+            load_shift_patterns('examples/shift_config.json', slot_duration_minutes=0)
+
+    def test_slot_duration_range_shift(self):
+        cfg = {
+            "shifts": [
+                {
+                    "name": "BAD",
+                    "slot_duration_minutes": 120,
+                    "pattern": {"work_days": [0], "segments": [8]},
+                    "break": 0,
+                }
+            ]
+        }
+        with self.assertRaises(ValueError):
+            load_shift_patterns(cfg, slot_duration_minutes=None)
 
 if __name__ == '__main__':
     unittest.main()
