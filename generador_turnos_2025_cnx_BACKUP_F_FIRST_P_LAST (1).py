@@ -14,6 +14,7 @@ import json
 import hashlib
 import os
 import re
+import gc
 
 from typing import Dict, List, Iterable, Union
 
@@ -1001,8 +1002,62 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
     time.sleep(1)
     pattern_progress.empty()
     pattern_status.empty()
-    
+
     return shifts_coverage
+
+
+# Pattern scoring based on demand coverage
+def score_pattern(pattern, demand_matrix):
+    """Return a simple coverage score for a single pattern."""
+    slots = len(pattern) // 7
+    factor = slots // demand_matrix.shape[1]
+    if factor > 1:
+        demand_expanded = np.repeat(demand_matrix, factor, axis=1)
+    else:
+        demand_expanded = demand_matrix[:, :slots]
+    pat = np.array(pattern).reshape(7, slots)
+    return float(np.sum(pat * demand_expanded))
+
+
+def optimize_with_phased_strategy_chunked(shifts_coverage, demand_matrix, chunk_size=100):
+    """Run phased optimization in chunks sorted by pattern score."""
+    if chunk_size is None or chunk_size <= 0 or len(shifts_coverage) <= chunk_size:
+        return optimize_with_phased_strategy(shifts_coverage, demand_matrix)
+
+    scored = sorted(
+        shifts_coverage.items(),
+        key=lambda kv: score_pattern(kv[1], demand_matrix),
+        reverse=True,
+    )
+
+    remaining_demand = np.array(demand_matrix, copy=True)
+    final_assignments = {}
+    methods = []
+    total_chunks = math.ceil(len(scored) / chunk_size)
+
+    for idx in range(total_chunks):
+        chunk_items = scored[idx * chunk_size : (idx + 1) * chunk_size]
+        chunk = {k: v for k, v in chunk_items}
+        print(f"Chunk {idx + 1}/{total_chunks}: optimizing {len(chunk)} patterns")
+        assgn, method = optimize_with_phased_strategy(chunk, remaining_demand)
+        methods.append(method)
+
+        for name, count in assgn.items():
+            final_assignments[name] = final_assignments.get(name, 0) + count
+            slots = len(chunk[name]) // 7
+            pat = np.array(chunk[name]).reshape(7, slots)
+            factor = slots // demand_matrix.shape[1]
+            if factor > 1:
+                hour_cov = pat.reshape(7, demand_matrix.shape[1], factor).sum(axis=2)
+            else:
+                hour_cov = pat[:, : demand_matrix.shape[1]]
+            remaining_demand = np.maximum(0, remaining_demand - hour_cov * count)
+
+        print(f"Remaining demand after chunk {idx + 1}: {remaining_demand.sum()}")
+        gc.collect()
+
+    final_method = "CHUNKED" if methods else ""
+    return final_assignments, final_method
 
 
 # ——————————————————————————————————————————————————————————————
