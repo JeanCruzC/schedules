@@ -53,12 +53,14 @@ def load_shift_patterns(
     break_from_start: float = 2.0,
     break_from_end: float = 2.0,
     slot_duration_minutes: int | None = 30,
+    max_patterns: int | None = None,
 ) -> Dict[str, np.ndarray]:
     """Parse JSON shift configuration and return pattern dictionary.
 
     If ``slot_duration_minutes`` is provided it overrides the value of
     ``slot_duration_minutes`` defined inside each shift.  Passing ``None`` keeps
-    the per-shift resolution intact.
+    the per-shift resolution intact.  When ``max_patterns`` is provided the
+    generator stops once that many unique patterns have been produced.
     """
     if isinstance(cfg, str):
         with open(cfg, "r") as fh:
@@ -138,6 +140,8 @@ def load_shift_patterns(
                     shift_name = f"{name}_{sh:04.1f}_{day_str}_{seg_str}"
                     shifts_coverage[shift_name] = pattern
                     unique_patterns[pat_key] = shift_name
+                    if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+                        return shifts_coverage
 
     return shifts_coverage
 try:
@@ -776,9 +780,10 @@ def get_optimal_break_time(start_hour, shift_duration, day, demand_day):
     return best_break
 
 
-def generate_shifts_coverage_corrected():
+def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
     """
     Genera patrones semanales completos con breaks variables por día
+    y permite limitar el número máximo generado.
     """
     # Crear barra de progreso para generación de patrones
     pattern_progress = st.progress(0)
@@ -803,6 +808,7 @@ def generate_shifts_coverage_corrected():
             break_from_start=break_from_start,
             break_from_end=break_from_end,
             slot_duration_minutes=int(step * 60),
+            max_patterns=max_patterns,
         )
 
         if not use_ft:
@@ -853,11 +859,23 @@ def generate_shifts_coverage_corrected():
                         )
                         shift_name = f"FT8_{start_hour:04.1f}_DSO{dso_day}"
                         shifts_coverage[shift_name] = weekly_pattern
-                        
+
                         current_patterns += 1
                         if total_patterns > 0:
                             pattern_progress.progress(current_patterns / total_patterns)
                             pattern_status.text(f"Generando patrones FT8: {current_patterns}/{total_patterns}")
+                        if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+                            truncated = total_patterns - len(shifts_coverage)
+                            pattern_progress.progress(1.0)
+                            ft_count = len([k for k in shifts_coverage if k.startswith('FT')])
+                            pt_count = len([k for k in shifts_coverage if k.startswith('PT')])
+                            pattern_status.text(
+                                f"Generados {len(shifts_coverage)} patrones: {ft_count} FT, {pt_count} PT (truncados {truncated})"
+                            )
+                            time.sleep(1)
+                            pattern_progress.empty()
+                            pattern_status.empty()
+                            return shifts_coverage
         
 
 
@@ -875,6 +893,18 @@ def generate_shifts_coverage_corrected():
                                 f"FT10p8_{start_hour:04.1f}_DSO{dso_day}_8{eight_day}"
                             )
                             shifts_coverage[shift_name] = weekly_pattern
+                            if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+                                truncated = total_patterns - len(shifts_coverage)
+                                pattern_progress.progress(1.0)
+                                ft_count = len([k for k in shifts_coverage if k.startswith('FT')])
+                                pt_count = len([k for k in shifts_coverage if k.startswith('PT')])
+                                pattern_status.text(
+                                    f"Generados {len(shifts_coverage)} patrones: {ft_count} FT, {pt_count} PT (truncados {truncated})"
+                                )
+                                time.sleep(1)
+                                pattern_progress.empty()
+                                pattern_status.empty()
+                                return shifts_coverage
     
     # ===== TURNOS PART TIME =====
     if use_pt:
@@ -889,6 +919,18 @@ def generate_shifts_coverage_corrected():
                             )
                             shift_name = f"PT4_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
+                            if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+                                truncated = total_patterns - len(shifts_coverage)
+                                pattern_progress.progress(1.0)
+                                ft_count = len([k for k in shifts_coverage if k.startswith('FT')])
+                                pt_count = len([k for k in shifts_coverage if k.startswith('PT')])
+                                pattern_status.text(
+                                    f"Generados {len(shifts_coverage)} patrones: {ft_count} FT, {pt_count} PT (truncados {truncated})"
+                                )
+                                time.sleep(1)
+                                pattern_progress.empty()
+                                pattern_status.empty()
+                                return shifts_coverage
         
         # 6 horas - combinaciones de 4 días (24h/sem)
         if allow_pt_6h:
@@ -901,6 +943,18 @@ def generate_shifts_coverage_corrected():
                             )
                             shift_name = f"PT6_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
+                            if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+                                truncated = total_patterns - len(shifts_coverage)
+                                pattern_progress.progress(1.0)
+                                ft_count = len([k for k in shifts_coverage if k.startswith('FT')])
+                                pt_count = len([k for k in shifts_coverage if k.startswith('PT')])
+                                pattern_status.text(
+                                    f"Generados {len(shifts_coverage)} patrones: {ft_count} FT, {pt_count} PT (truncados {truncated})"
+                                )
+                                time.sleep(1)
+                                pattern_progress.empty()
+                                pattern_status.empty()
+                                return shifts_coverage
         
         # 5 horas - combinaciones de 5 días (~25h/sem)
         if allow_pt_5h:
@@ -913,12 +967,34 @@ def generate_shifts_coverage_corrected():
                             )
                             shift_name = f"PT5_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
+                            if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+                                truncated = total_patterns - len(shifts_coverage)
+                                pattern_progress.progress(1.0)
+                                ft_count = len([k for k in shifts_coverage if k.startswith('FT')])
+                                pt_count = len([k for k in shifts_coverage if k.startswith('PT')])
+                                pattern_status.text(
+                                    f"Generados {len(shifts_coverage)} patrones: {ft_count} FT, {pt_count} PT (truncados {truncated})"
+                                )
+                                time.sleep(1)
+                                pattern_progress.empty()
+                                pattern_status.empty()
+                                return shifts_coverage
     
     # Completar barra de progreso
     pattern_progress.progress(1.0)
     ft_count = len([k for k in shifts_coverage.keys() if k.startswith('FT')])
     pt_count = len([k for k in shifts_coverage.keys() if k.startswith('PT')])
-    pattern_status.text(f"Generados {len(shifts_coverage)} patrones: {ft_count} FT, {pt_count} PT")
+    truncated = 0
+    if max_patterns is not None and len(shifts_coverage) < total_patterns:
+        truncated = total_patterns - len(shifts_coverage)
+    if truncated:
+        pattern_status.text(
+            f"Generados {len(shifts_coverage)} patrones: {ft_count} FT, {pt_count} PT (truncados {truncated})"
+        )
+    else:
+        pattern_status.text(
+            f"Generados {len(shifts_coverage)} patrones: {ft_count} FT, {pt_count} PT"
+        )
     
     # Limpiar elementos de progreso
     time.sleep(1)
