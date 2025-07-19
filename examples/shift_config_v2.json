@@ -2,7 +2,7 @@
   "shifts": [
     {
       "name": "FT_12_9_6",
-      "slot_duration_minutes": 60,
+      "slot_duration_minutes": 30,
       "pattern": {
         "work_days": 6,
         "segments": [

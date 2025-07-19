@@ -69,8 +69,6 @@ def load_shift_patterns(
         data = cfg
 
     if slot_duration_minutes is not None:
-        if slot_duration_minutes != 60:
-            raise NotImplementedError("only 60-minute slots are supported")
         if 60 % slot_duration_minutes != 0:
             raise ValueError("slot_duration_minutes must divide 60")
 
@@ -86,8 +84,6 @@ def load_shift_patterns(
             if slot_duration_minutes is not None
             else shift.get("slot_duration_minutes", 60)
         )
-        if slot_min != 60:
-            raise NotImplementedError("only 60-minute slots are supported")
         if 60 % slot_min != 0:
             raise ValueError("slot_duration_minutes must divide 60")
         step = slot_min / 60
