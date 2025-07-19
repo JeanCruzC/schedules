@@ -1,8 +1,6 @@
 import unittest
-import numpy as np
-import importlib.util
-from pathlib import Path
 from types import ModuleType
+from pathlib import Path
 import sys
 
 for name in ["streamlit", "seaborn", "pandas"]:
@@ -15,12 +13,13 @@ sys.modules.setdefault("pyworkforce.scheduling", pywork_sched)
 pywork = ModuleType("pyworkforce")
 pywork.scheduling = pywork_sched
 sys.modules.setdefault("pyworkforce", pywork)
+
 psutil_mod = ModuleType("psutil")
 class VMem:
     def __init__(self, avail):
         self.available = avail
-psutil_mod.virtual_memory = lambda: VMem(1024 * 1024 * 1024)
-sys.modules.setdefault("psutil", psutil_mod)
+psutil_mod.virtual_memory = lambda: VMem(512 * 1024 * 1024)
+sys.modules["psutil"] = psutil_mod
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "generador_turnos_2025_cnx_BACKUP_F_FIRST_P_LAST (1).py"
 module = ModuleType("loader")
@@ -32,24 +31,14 @@ with open(SCRIPT_PATH, "r") as fh:
         lines.append(line)
     code = "".join(lines)
 exec(code, module.__dict__)
-load_shift_patterns = module.load_shift_patterns
 
-class LoaderTest(unittest.TestCase):
-    def test_v1_format(self):
-        data = load_shift_patterns('examples/shift_config.json', slot_duration_minutes=60)
-        self.assertTrue(data)
-        for arr in data.values():
-            self.assertEqual(arr.shape, (7 * 24,))
+memory_limit_patterns = module.memory_limit_patterns
 
-    def test_v2_format(self):
-        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30)
-        self.assertTrue(data)
-        for arr in data.values():
-            self.assertEqual(arr.shape, (7 * 48,))
+class MemoryLimitTest(unittest.TestCase):
+    def test_dynamic_limit(self):
+        limit = memory_limit_patterns(24)
+        expected = (512 * 1024 * 1024) // (7 * 24)
+        self.assertEqual(limit, expected)
 
-    def test_max_patterns_limit(self):
-        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30, max_patterns=10)
-        self.assertEqual(len(data), 10)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

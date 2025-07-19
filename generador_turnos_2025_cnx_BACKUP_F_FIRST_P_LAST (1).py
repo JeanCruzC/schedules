@@ -14,8 +14,25 @@ import json
 import hashlib
 import os
 import re
+import psutil
 
 from typing import Dict, List, Iterable, Union
+
+
+def memory_limit_patterns(slots_per_day: int, cap_bytes: int = 4 * 1024**3) -> int:
+    """Return maximum patterns fitting in available memory.
+
+    Parameters
+    ----------
+    slots_per_day : int
+        Number of slots per day for each pattern.
+    cap_bytes : int, optional
+        Hard upper bound for memory usage (defaults to 4 GB).
+    """
+    avail = psutil.virtual_memory().available
+    mem_cap = min(avail, cap_bytes)
+    bytes_per_pattern = 7 * slots_per_day
+    return max(1, mem_cap // bytes_per_pattern)
 
 
 def _build_pattern(
@@ -68,9 +85,27 @@ def load_shift_patterns(
     else:
         data = cfg
 
+
     if slot_duration_minutes is not None:
         if 60 % slot_duration_minutes != 0:
             raise ValueError("slot_duration_minutes must divide 60")
+        default_factor = 60 // slot_duration_minutes
+    else:
+        default_factor = 1
+
+    max_slot_factor = default_factor
+    for shift in data.get("shifts", []):
+        slot_min = (
+            slot_duration_minutes
+            if slot_duration_minutes is not None
+            else shift.get("slot_duration_minutes", 60)
+        )
+        if 60 % slot_min != 0:
+            raise ValueError("slot_duration_minutes must divide 60")
+        max_slot_factor = max(max_slot_factor, 60 // slot_min)
+
+    if max_patterns is None:
+        max_patterns = memory_limit_patterns(24 * max_slot_factor)
 
     shifts_coverage: Dict[str, np.ndarray] = {}
     unique_patterns: Dict[bytes, str] = {}
@@ -800,6 +835,10 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
         step = template_cfg.get("slot_duration_minutes", 30) / 60
 
     start_hours = [h for h in np.arange(0, 24, step) if h <= 23.5]
+
+    slot_factor = int(round(1 / step)) if step else 1
+    if max_patterns is None:
+        max_patterns = memory_limit_patterns(24 * slot_factor)
 
     # Perfil JEAN Personalizado: leer patrones desde JSON y retornar
     if optimization_profile == "JEAN Personalizado":

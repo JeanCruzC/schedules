@@ -139,7 +139,9 @@ for a complete example.
 Both `load_shift_patterns()` and the internal `generate_shifts_coverage_corrected()`
 function accept an optional `max_patterns` argument. When provided, pattern
 generation stops once this limit is reached which is useful during testing
-or when exploring large configuration spaces.
+or when exploring large configuration spaces.  When omitted the functions
+estimate a safe limit using the available RAM (via `psutil`) so that the
+generated arrays occupy at most about **4 GB** of memory.
 
 ## Testing
 
