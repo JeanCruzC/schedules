@@ -781,7 +781,7 @@ def get_optimal_break_time(start_hour, shift_duration, day, demand_day):
     return best_break
 
 
-def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
+def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch_size: int | None = None):
     """
     Genera patrones semanales completos con breaks variables por día
     y permite limitar el número máximo generado.
@@ -791,6 +791,7 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
     pattern_status = st.empty()
     
     shifts_coverage = {}
+    seen_patterns = set()
     total_patterns = 0
     current_patterns = 0
     
@@ -828,7 +829,12 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
         time.sleep(1)
         pattern_progress.empty()
         pattern_status.empty()
-        return shifts_coverage
+        if batch_size:
+            if shifts_coverage:
+                yield shifts_coverage
+        else:
+            yield shifts_coverage
+        return
     
     # Calcular total de patrones expandido
     total_patterns = 0
@@ -858,8 +864,15 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                         weekly_pattern = generate_weekly_pattern(
                             start_hour, 8, working_days, dso_day
                         )
+                        pat_key = weekly_pattern.tobytes()
+                        if pat_key in seen_patterns:
+                            continue
+                        seen_patterns.add(pat_key)
                         shift_name = f"FT8_{start_hour:04.1f}_DSO{dso_day}"
                         shifts_coverage[shift_name] = weekly_pattern
+                        if batch_size and len(shifts_coverage) >= batch_size:
+                            yield shifts_coverage
+                            shifts_coverage = {}
 
                         current_patterns += 1
                         if total_patterns > 0:
@@ -876,7 +889,12 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                             time.sleep(1)
                             pattern_progress.empty()
                             pattern_status.empty()
-                            return shifts_coverage
+                            if batch_size:
+                                if shifts_coverage:
+                                    yield shifts_coverage
+                            else:
+                                yield shifts_coverage
+                            return
         
 
 
@@ -890,10 +908,17 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                             weekly_pattern = generate_weekly_pattern_10h8(
                                 start_hour, working_days, eight_day
                             )
+                            pat_key = weekly_pattern.tobytes()
+                            if pat_key in seen_patterns:
+                                continue
+                            seen_patterns.add(pat_key)
                             shift_name = (
                                 f"FT10p8_{start_hour:04.1f}_DSO{dso_day}_8{eight_day}"
                             )
                             shifts_coverage[shift_name] = weekly_pattern
+                            if batch_size and len(shifts_coverage) >= batch_size:
+                                yield shifts_coverage
+                                shifts_coverage = {}
                             if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                                 truncated = total_patterns - len(shifts_coverage)
                                 pattern_progress.progress(1.0)
@@ -905,7 +930,12 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                                 time.sleep(1)
                                 pattern_progress.empty()
                                 pattern_status.empty()
-                                return shifts_coverage
+                                if batch_size:
+                                    if shifts_coverage:
+                                        yield shifts_coverage
+                                else:
+                                    yield shifts_coverage
+                                return
     
     # ===== TURNOS PART TIME =====
     if use_pt:
@@ -918,8 +948,15 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                             weekly_pattern = generate_weekly_pattern_simple(
                                 start_hour, 4, list(working_combo)
                             )
+                            pat_key = weekly_pattern.tobytes()
+                            if pat_key in seen_patterns:
+                                continue
+                            seen_patterns.add(pat_key)
                             shift_name = f"PT4_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
+                            if batch_size and len(shifts_coverage) >= batch_size:
+                                yield shifts_coverage
+                                shifts_coverage = {}
                             if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                                 truncated = total_patterns - len(shifts_coverage)
                                 pattern_progress.progress(1.0)
@@ -931,7 +968,12 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                                 time.sleep(1)
                                 pattern_progress.empty()
                                 pattern_status.empty()
-                                return shifts_coverage
+                                if batch_size:
+                                    if shifts_coverage:
+                                        yield shifts_coverage
+                                else:
+                                    yield shifts_coverage
+                                return
         
         # 6 horas - combinaciones de 4 días (24h/sem)
         if allow_pt_6h:
@@ -942,8 +984,15 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                             weekly_pattern = generate_weekly_pattern_simple(
                                 start_hour, 6, list(working_combo)
                             )
+                            pat_key = weekly_pattern.tobytes()
+                            if pat_key in seen_patterns:
+                                continue
+                            seen_patterns.add(pat_key)
                             shift_name = f"PT6_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
+                            if batch_size and len(shifts_coverage) >= batch_size:
+                                yield shifts_coverage
+                                shifts_coverage = {}
                             if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                                 truncated = total_patterns - len(shifts_coverage)
                                 pattern_progress.progress(1.0)
@@ -955,7 +1004,12 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                                 time.sleep(1)
                                 pattern_progress.empty()
                                 pattern_status.empty()
-                                return shifts_coverage
+                                if batch_size:
+                                    if shifts_coverage:
+                                        yield shifts_coverage
+                                else:
+                                    yield shifts_coverage
+                                return
         
         # 5 horas - combinaciones de 5 días (~25h/sem)
         if allow_pt_5h:
@@ -966,8 +1020,15 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                             weekly_pattern = generate_weekly_pattern_pt5(
                                 start_hour, list(working_combo)
                             )
+                            pat_key = weekly_pattern.tobytes()
+                            if pat_key in seen_patterns:
+                                continue
+                            seen_patterns.add(pat_key)
                             shift_name = f"PT5_{start_hour:04.1f}_DAYS{''.join(map(str,working_combo))}"
                             shifts_coverage[shift_name] = weekly_pattern
+                            if batch_size and len(shifts_coverage) >= batch_size:
+                                yield shifts_coverage
+                                shifts_coverage = {}
                             if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                                 truncated = total_patterns - len(shifts_coverage)
                                 pattern_progress.progress(1.0)
@@ -979,7 +1040,12 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
                                 time.sleep(1)
                                 pattern_progress.empty()
                                 pattern_status.empty()
-                                return shifts_coverage
+                                if batch_size:
+                                    if shifts_coverage:
+                                        yield shifts_coverage
+                                else:
+                                    yield shifts_coverage
+                                return
     
     # Completar barra de progreso
     pattern_progress.progress(1.0)
@@ -1002,7 +1068,9 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
     pattern_progress.empty()
     pattern_status.empty()
     
-    return shifts_coverage
+    if shifts_coverage:
+        yield shifts_coverage
+    return
 
 
 # ——————————————————————————————————————————————————————————————
@@ -2621,7 +2689,9 @@ if st.button("🚀 Ejecutar Optimización", type="primary", use_container_width=
     
     # Generar patrones de turnos
     st.info("🔄 Generando patrones de turnos...")
-    shifts_coverage = generate_shifts_coverage_corrected()
+    shifts_coverage = {}
+    for batch in generate_shifts_coverage_corrected():
+        shifts_coverage.update(batch)
     
     if not shifts_coverage:
         st.error("⚠️ No se pudieron generar patrones válidos con la configuración actual")

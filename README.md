@@ -139,7 +139,9 @@ for a complete example.
 Both `load_shift_patterns()` and the internal `generate_shifts_coverage_corrected()`
 function accept an optional `max_patterns` argument. When provided, pattern
 generation stops once this limit is reached which is useful during testing
-or when exploring large configuration spaces.
+or when exploring large configuration spaces.  The latter also supports a
+`batch_size` option that yields patterns in chunks to keep memory usage in
+check when exploring huge spaces.
 
 ## Testing
 
