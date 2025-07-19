@@ -25,22 +25,24 @@ def _build_pattern(
     break_len: float,
     break_from_start: float,
     break_from_end: float,
+    slot_factor: int = 1,
 ) -> np.ndarray:
-    """Return flattened 7x24 matrix for given days/durations."""
-    pattern = np.zeros((7, 24), dtype=np.int8)
+    """Return flattened weekly matrix with custom slot resolution."""
+    slots_per_day = 24 * slot_factor
+    pattern = np.zeros((7, slots_per_day), dtype=np.int8)
     for day, dur in zip(days, durations):
-        for h in range(int(dur)):
-            idx = int(start_hour + h) % 24
+        for s in range(int(dur * slot_factor)):
+            idx = int(start_hour * slot_factor + s) % slots_per_day
             pattern[day, idx] = 1
         if break_len:
-            b_start = int(start_hour + break_from_start) % 24
-            b_end = int(start_hour + dur - break_from_end) % 24
+            b_start = int((start_hour + break_from_start) * slot_factor) % slots_per_day
+            b_end = int((start_hour + dur - break_from_end) * slot_factor) % slots_per_day
             if b_start < b_end:
-                b_hour = b_start + (b_end - b_start) // 2
+                b_slot = b_start + (b_end - b_start) // 2
             else:
-                b_hour = b_start
-            for b in range(int(break_len)):
-                pattern[day, (b_hour + b) % 24] = 0
+                b_slot = b_start
+            for b in range(int(break_len * slot_factor)):
+                pattern[day, (b_slot + b) % slots_per_day] = 0
     return pattern.flatten()
 
 
@@ -59,6 +61,9 @@ def load_shift_patterns(
     else:
         data = cfg
 
+    if 60 % slot_duration_minutes != 0:
+        raise ValueError("slot_duration_minutes must divide 60")
+
     shifts_coverage: Dict[str, np.ndarray] = {}
     unique_patterns: Dict[bytes, str] = {}
     for shift in data.get("shifts", []):
@@ -67,7 +72,10 @@ def load_shift_patterns(
         brk = shift.get("break", 0)
 
         slot_min = shift.get("slot_duration_minutes", slot_duration_minutes)
+        if 60 % slot_min != 0:
+            raise ValueError("slot_duration_minutes must divide 60")
         step = slot_min / 60
+        slot_factor = 60 // slot_min
         sh_hours = (
             list(start_hours)
             if start_hours is not None
@@ -111,7 +119,7 @@ def load_shift_patterns(
             for perm in set(permutations(segments, len(days_sel))):
                 for sh in sh_hours:
                     pattern = _build_pattern(
-                        days_sel, perm, sh, brk_len, brk_start, brk_end
+                        days_sel, perm, sh, brk_len, brk_start, brk_end, slot_factor
                     )
                     pat_key = pattern.tobytes()
                     if pat_key in unique_patterns:
@@ -949,7 +957,8 @@ def optimize_ft_then_pt(ft_shifts, pt_shifts, demand_matrix):
         # Calcular cobertura después de FT
         ft_coverage = np.zeros_like(demand_matrix)
         for shift_name, count in ft_assignments.items():
-            pattern = np.array(ft_shifts[shift_name]).reshape(7, 24)
+            slots_per_day = len(ft_shifts[shift_name]) // 7
+            pattern = np.array(ft_shifts[shift_name]).reshape(7, slots_per_day)
             ft_coverage += pattern * count
         
         # FASE 2: Optimizar PT para completar
@@ -990,14 +999,15 @@ def optimize_ft_phase(ft_shifts, demand_matrix):
     # Variables de déficit y exceso
     deficit_vars = {}
     excess_vars = {}
+    hours = demand_matrix.shape[1]
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             deficit_vars[(day, hour)] = pulp.LpVariable(f"ft_deficit_{day}_{hour}", 0, None)
             excess_vars[(day, hour)] = pulp.LpVariable(f"ft_excess_{day}_{hour}", 0, None)
     
     # Objetivo usando parámetros del perfil
-    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(24)])
-    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(24)])
+    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(hours)])
+    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(hours)])
     total_ft_agents = pulp.lpSum([ft_vars[shift] for shift in ft_shifts.keys()])
     
     # Usar excess_penalty del perfil para controlar exceso en fase FT
@@ -1005,9 +1015,9 @@ def optimize_ft_phase(ft_shifts, demand_matrix):
     
     # Restricciones de cobertura
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             coverage = pulp.lpSum([
-                ft_vars[shift] * ft_shifts[shift][day * 24 + hour]
+                ft_vars[shift] * ft_shifts[shift][day * hours + hour]
                 for shift in ft_shifts.keys()
             ])
             demand = demand_matrix[day, hour]
@@ -1054,14 +1064,15 @@ def optimize_pt_phase(pt_shifts, remaining_demand):
     # Variables de déficit y exceso
     deficit_vars = {}
     excess_vars = {}
+    hours = remaining_demand.shape[1]
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             deficit_vars[(day, hour)] = pulp.LpVariable(f"pt_deficit_{day}_{hour}", 0, None)
             excess_vars[(day, hour)] = pulp.LpVariable(f"pt_excess_{day}_{hour}", 0, None)
     
     # Objetivo usando parámetros del perfil
-    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(24)])
-    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(24)])
+    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(hours)])
+    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(hours)])
     total_pt_agents = pulp.lpSum([pt_vars[shift] for shift in pt_shifts.keys()])
     
     # Bonificaciones por días críticos y horas pico
@@ -1072,7 +1083,7 @@ def optimize_pt_phase(pt_shifts, remaining_demand):
     daily_demand = remaining_demand.sum(axis=1)
     if len(daily_demand) > 0 and daily_demand.max() > 0:
         critical_day = np.argmax(daily_demand)
-        for hour in range(24):
+        for hour in range(hours):
             if remaining_demand[critical_day, hour] > 0:
                 critical_bonus_value -= deficit_vars[(critical_day, hour)] * critical_bonus
     
@@ -1093,9 +1104,9 @@ def optimize_pt_phase(pt_shifts, remaining_demand):
     
     # Restricciones de cobertura
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             coverage = pulp.lpSum([
-                pt_vars[shift] * pt_shifts[shift][day * 24 + hour]
+                pt_vars[shift] * pt_shifts[shift][day * hours + hour]
                 for shift in pt_shifts.keys()
             ])
             demand = remaining_demand[day, hour]
@@ -1138,14 +1149,15 @@ def optimize_single_type(shifts, demand_matrix, shift_type):
     # Variables de déficit y exceso
     deficit_vars = {}
     excess_vars = {}
+    hours = demand_matrix.shape[1]
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             deficit_vars[(day, hour)] = pulp.LpVariable(f"{shift_type.lower()}_deficit_{day}_{hour}", 0, None)
             excess_vars[(day, hour)] = pulp.LpVariable(f"{shift_type.lower()}_excess_{day}_{hour}", 0, None)
     
     # Objetivo con parámetros del perfil
-    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(24)])
-    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(24)])
+    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(hours)])
+    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(hours)])
     total_agents = pulp.lpSum([shift_vars[shift] for shift in shifts.keys()])
     
     # Bonificaciones por días críticos y horas pico
@@ -1156,7 +1168,7 @@ def optimize_single_type(shifts, demand_matrix, shift_type):
     daily_demand = demand_matrix.sum(axis=1)
     if len(daily_demand) > 0 and daily_demand.max() > 0:
         critical_day = np.argmax(daily_demand)
-        for hour in range(24):
+        for hour in range(hours):
             if demand_matrix[critical_day, hour] > 0:
                 critical_bonus_value -= deficit_vars[(critical_day, hour)] * critical_bonus
     
@@ -1177,9 +1189,9 @@ def optimize_single_type(shifts, demand_matrix, shift_type):
     
     # Restricciones de cobertura
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             coverage = pulp.lpSum([
-                shift_vars[shift] * shifts[shift][day * 24 + hour]
+                shift_vars[shift] * shifts[shift][day * hours + hour]
                 for shift in shifts.keys()
             ])
             demand = demand_matrix[day, hour]
@@ -1237,8 +1249,9 @@ def optimize_with_precision_targeting(shifts_coverage, demand_matrix):
         # Variables de déficit y exceso con pesos dinámicos
         deficit_vars = {}
         excess_vars = {}
+        hours = demand_matrix.shape[1]
         for day in range(7):
-            for hour in range(24):
+            for hour in range(hours):
                 deficit_vars[(day, hour)] = pulp.LpVariable(f"deficit_{day}_{hour}", 0, None)
                 excess_vars[(day, hour)] = pulp.LpVariable(f"excess_{day}_{hour}", 0, None)
         
@@ -1252,13 +1265,13 @@ def optimize_with_precision_targeting(shifts_coverage, demand_matrix):
         status_text.text("⚙️ Construyendo función objetivo ultra-precisa...")
         
         # Función objetivo ultra-precisa
-        total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(24)])
+        total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(hours)])
         total_agents = pulp.lpSum([shift_vars[shift] for shift in shifts_list])
         
         # Penalización de exceso ultra-inteligente
         smart_excess_penalty = 0
         for day in range(7):
-            for hour in range(24):
+            for hour in range(hours):
                 demand_val = demand_matrix[day, hour]
                 if demand_val == 0:
                     # Prohibición total de exceso en horas sin demanda
@@ -1280,13 +1293,13 @@ def optimize_with_precision_targeting(shifts_coverage, demand_matrix):
         for critical_day in critical_days:
             if critical_day < 7:
                 day_multiplier = min(5.0, daily_totals[critical_day] / max(1, daily_totals.mean()))
-                for hour in range(24):
+                for hour in range(hours):
                     if demand_matrix[critical_day, hour] > 0:
                         precision_bonus -= deficit_vars[(critical_day, hour)] * (critical_bonus * 100 * day_multiplier)
         
         # Bonificar cobertura en horas pico
         for hour in peak_hours:
-            if hour < 24:
+            if hour < hours:
                 hour_multiplier = min(3.0, hourly_totals[hour] / max(1, hourly_totals.mean()))
                 for day in range(7):
                     if demand_matrix[day, hour] > 0:
@@ -1303,9 +1316,9 @@ def optimize_with_precision_targeting(shifts_coverage, demand_matrix):
         
         # Restricciones de cobertura exacta
         for day in range(7):
-            for hour in range(24):
+            for hour in range(hours):
                 coverage = pulp.lpSum([
-                    shift_vars[shift] * shifts_coverage[shift][day * 24 + hour]
+                    shift_vars[shift] * shifts_coverage[shift][day * hours + hour]
                     for shift in shifts_list
                 ])
                 demand = demand_matrix[day, hour]
@@ -1332,7 +1345,7 @@ def optimize_with_precision_targeting(shifts_coverage, demand_matrix):
         prob += total_agents <= dynamic_agent_limit
         
         # Control de exceso global más flexible
-        total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(24)])
+        total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(hours)])
         
         # Restricciones más flexibles para encontrar soluciones
         prob += total_excess <= total_demand * 0.10  # 10% exceso permitido
@@ -1342,7 +1355,12 @@ def optimize_with_precision_targeting(shifts_coverage, demand_matrix):
             day_demand = demand_matrix[day].sum()
             if day_demand > 0:
                 day_coverage = pulp.lpSum([
-                    shift_vars[shift] * np.sum(np.array(shifts_coverage[shift]).reshape(7, 24)[day])
+                    shift_vars[shift]
+                    * np.sum(
+                        np.array(shifts_coverage[shift]).reshape(
+                            7, len(shifts_coverage[shift]) // 7
+                        )[day]
+                    )
                     for shift in shifts_list
                 ])
                 # Control más flexible por día
@@ -1410,7 +1428,8 @@ def optimize_ft_then_pt_strategy(shifts_coverage, demand_matrix):
         # Calcular cobertura FT
         ft_coverage = np.zeros_like(demand_matrix)
         for shift_name, count in ft_assignments.items():
-            pattern = np.array(ft_shifts[shift_name]).reshape(7, 24)
+            slots_per_day = len(ft_shifts[shift_name]) // 7
+            pattern = np.array(ft_shifts[shift_name]).reshape(7, slots_per_day)
             ft_coverage += pattern * count
         
         # FASE 2: PT para completar déficit
@@ -1450,21 +1469,22 @@ def optimize_ft_no_excess(ft_shifts, demand_matrix):
     
     # Solo variables de déficit (NO exceso)
     deficit_vars = {}
+    hours = demand_matrix.shape[1]
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             deficit_vars[(day, hour)] = pulp.LpVariable(f"ft_deficit_{day}_{hour}", 0, None)
     
     # Objetivo: minimizar déficit + agentes
-    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(24)])
+    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(hours)])
     total_ft_agents = pulp.lpSum([ft_vars[shift] for shift in ft_shifts.keys()])
     
     prob += total_deficit * 1000 + total_ft_agents * 1
     
     # Restricciones: cobertura <= demanda (SIN exceso)
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             coverage = pulp.lpSum([
-                ft_vars[shift] * ft_shifts[shift][day * 24 + hour]
+                ft_vars[shift] * ft_shifts[shift][day * hours + hour]
                 for shift in ft_shifts.keys()
             ])
             demand = demand_matrix[day, hour]
@@ -1502,14 +1522,15 @@ def optimize_pt_complete(pt_shifts, remaining_demand):
     # Variables de déficit y exceso
     deficit_vars = {}
     excess_vars = {}
+    hours = remaining_demand.shape[1]
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             deficit_vars[(day, hour)] = pulp.LpVariable(f"pt_deficit_{day}_{hour}", 0, None)
             excess_vars[(day, hour)] = pulp.LpVariable(f"pt_excess_{day}_{hour}", 0, None)
     
     # Objetivo: minimizar déficit, controlar exceso
-    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(24)])
-    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(24)])
+    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(hours)])
+    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(hours)])
     total_pt_agents = pulp.lpSum([pt_vars[shift] for shift in pt_shifts.keys()])
     
     prob += total_deficit * 1000 + total_excess * (excess_penalty * 20) + total_pt_agents * 1
@@ -1520,9 +1541,9 @@ def optimize_pt_complete(pt_shifts, remaining_demand):
     
     # Restricciones de cobertura
     for day in range(7):
-        for hour in range(24):
+        for hour in range(hours):
             coverage = pulp.lpSum([
-                pt_vars[shift] * pt_shifts[shift][day * 24 + hour]
+                pt_vars[shift] * pt_shifts[shift][day * hours + hour]
                 for shift in pt_shifts.keys()
             ])
             demand = remaining_demand[day, hour]
@@ -1630,7 +1651,8 @@ def optimize_schedule_greedy_enhanced(shifts_coverage, demand_matrix):
             
             for shift_name in shifts_list:
                 try:
-                    base_pattern = np.array(shifts_coverage[shift_name]).reshape(7, 24)
+                    slots_per_day = len(shifts_coverage[shift_name]) // 7
+                    base_pattern = np.array(shifts_coverage[shift_name]).reshape(7, slots_per_day)
                     new_coverage = current_coverage + base_pattern
                     
                     # Cálculo de score mejorado
@@ -2292,14 +2314,16 @@ def analyze_results(assignments, shifts_coverage, demand_matrix):
         return None
     
     # Calcular cobertura total
-    total_coverage = np.zeros((7, 24), dtype=np.int16)
+    slots_per_day = len(next(iter(shifts_coverage.values()))) // 7 if shifts_coverage else 24
+    total_coverage = np.zeros((7, slots_per_day), dtype=np.int16)
     total_agents = 0
     ft_agents = 0
     pt_agents = 0
     
     for shift_name, count in assignments.items():
         weekly_pattern = shifts_coverage[shift_name]
-        pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
+        slots_per_day = len(weekly_pattern) // 7
+        pattern_matrix = np.array(weekly_pattern).reshape(7, slots_per_day)
 
         weekly_hours = pattern_matrix.sum()
         max_allowed = 48 if shift_name.startswith('FT') else 24
@@ -2376,7 +2400,8 @@ def export_detailed_schedule(assignments, shifts_coverage):
 
     for shift_name, count in assignments.items():
         weekly_pattern = shifts_coverage[shift_name]
-        pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
+        slots_per_day = len(weekly_pattern) // 7
+        pattern_matrix = np.array(weekly_pattern).reshape(7, slots_per_day)
 
         # Parsing robusto del nombre del turno
         parts = shift_name.split('_')
@@ -2532,7 +2557,8 @@ if st.button("🚀 Ejecutar Optimización", type="primary", use_container_width=
     
     for shift_name, count in assignments.items():
         if shift_name in shifts_coverage:
-            shift_pattern = np.array(shifts_coverage[shift_name]).reshape(7, 24)
+            slots_per_day = len(shifts_coverage[shift_name]) // 7
+            shift_pattern = np.array(shifts_coverage[shift_name]).reshape(7, slots_per_day)
             total_coverage += shift_pattern * count
     
     # Calcular cobertura real (puede ser >100% si hay exceso)
@@ -2777,10 +2803,12 @@ def analyze_coverage_precision(assignments, shifts_coverage, demand_matrix):
         return None
     
     # Calcular cobertura total
-    total_coverage = np.zeros((7, 24), dtype=np.int16)
+    slots_per_day = len(next(iter(shifts_coverage.values()))) // 7 if shifts_coverage else 24
+    total_coverage = np.zeros((7, slots_per_day), dtype=np.int16)
     for shift_name, count in assignments.items():
         weekly_pattern = shifts_coverage[shift_name]
-        pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
+        slots_per_day = len(weekly_pattern) // 7
+        pattern_matrix = np.array(weekly_pattern).reshape(7, slots_per_day)
         total_coverage += pattern_matrix * count
     
     # Métricas de precisión
