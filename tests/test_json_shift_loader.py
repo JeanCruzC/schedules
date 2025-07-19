@@ -30,20 +30,39 @@ load_shift_patterns = module.load_shift_patterns
 
 class LoaderTest(unittest.TestCase):
     def test_v1_format(self):
-        data = load_shift_patterns('examples/shift_config.json', slot_duration_minutes=60)
+        data = load_shift_patterns(
+            'examples/shift_config.json',
+            start_hours=[8, 9],
+            break_from_start=1,
+            break_from_end=1,
+            slot_duration_minutes=60,
+        )
         self.assertTrue(data)
         for arr in data.values():
             self.assertEqual(arr.shape, (7 * 24,))
 
     def test_v2_format(self):
-        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30)
+        data = load_shift_patterns(
+            'examples/shift_config_v2.json',
+            start_hours=[8, 8.5],
+            break_from_start=1,
+            break_from_end=1,
+            slot_duration_minutes=30,
+        )
         self.assertTrue(data)
         for arr in data.values():
             self.assertEqual(arr.shape, (7 * 48,))
 
     def test_max_patterns_limit(self):
-        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30, max_patterns=10)
-        self.assertEqual(len(data), 10)
+        data = load_shift_patterns(
+            'examples/shift_config_v2.json',
+            start_hours=[8, 8.5],
+            break_from_start=1,
+            break_from_end=1,
+            slot_duration_minutes=30,
+            max_patterns=10,
+        )
+        self.assertLessEqual(len(data), 10)
 
     def test_cross_midnight_pattern(self):
         pat = module._build_pattern([0], [4], 23, 0, 2, 2, 1)

@@ -68,6 +68,52 @@ def score_pattern(pattern: np.ndarray, demand_matrix: np.ndarray) -> int:
     return int(np.minimum(pat[:lim], dm[:lim]).sum())
 
 
+def get_smart_start_hours(
+    demand_matrix: np.ndarray,
+    *,
+    step_hours: float = 0.5,
+    margin_hours: int = 1,
+) -> List[float]:
+    """Return start hours around the active demand window.
+
+    The function inspects the demand matrix to locate the first and last
+    hours with any demand and then expands the range by ``margin_hours`` on
+    both sides.  Values are returned at ``step_hours`` resolution.
+    """
+    if demand_matrix.size == 0:
+        return list(np.arange(0, 24, step_hours))
+
+    hourly_totals = demand_matrix.sum(axis=0)
+    active = np.where(hourly_totals > 0)[0]
+    if active.size == 0:
+        return list(np.arange(0, 24, step_hours))
+
+    first_hour = int(active.min())
+    last_hour = int(active.max()) + 1
+
+    start = max(0, first_hour - margin_hours)
+    end = min(24, last_hour + margin_hours)
+    return [round(h, 1) for h in np.arange(start, end, step_hours)]
+
+
+def score_and_filter_patterns(
+    patterns: Dict[str, np.ndarray],
+    demand_matrix: np.ndarray,
+    *,
+    limit: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Return top scoring patterns according to ``score_pattern``."""
+    if limit is None or limit >= len(patterns):
+        return patterns
+
+    scored = sorted(
+        patterns.items(),
+        key=lambda kv: score_pattern(kv[1], demand_matrix),
+        reverse=True,
+    )
+    return {name: pat for name, pat in scored[:limit]}
+
+
 def load_shift_patterns(
     cfg: Union[str, dict],
     *,
