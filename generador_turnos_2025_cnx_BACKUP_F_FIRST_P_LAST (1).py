@@ -2705,6 +2705,25 @@ def export_detailed_schedule(assignments, shifts_coverage):
         df_shifts.to_excel(writer, sheet_name='Turnos_Asignados', index=False)
 
     return output.getvalue()
+def solve_in_chunks(shifts_coverage: Dict[str, np.ndarray], demand_matrix: np.ndarray, chunk_size: int = 10000):
+    """Solve using chunks of patterns sorted by score."""
+    items = list(shifts_coverage.items())
+    items.sort(key=lambda kv: score_pattern(kv[1], demand_matrix), reverse=True)
+    assignments_total: Dict[str, int] = {}
+    coverage = np.zeros_like(demand_matrix)
+    for i in range(0, len(items), chunk_size):
+        chunk = dict(items[i:i + chunk_size])
+        remaining = np.maximum(0, demand_matrix - coverage)
+        if not np.any(remaining):
+            break
+        assigns, _ = optimize_schedule_iterative(chunk, remaining)
+        for name, val in assigns.items():
+            assignments_total[name] = assignments_total.get(name, 0) + val
+            slots = len(chunk[name]) // 7
+            coverage += chunk[name].reshape(7, slots) * val
+        gc.collect()
+    return assignments_total
+
 
 
 # ——————————————————————————————————————————————————————————————
@@ -2978,24 +2997,6 @@ def optimize_schedule(shifts_coverage, demand_matrix):
     return optimize_schedule_iterative(shifts_coverage, demand_matrix)
 
 
-def solve_in_chunks(shifts_coverage: Dict[str, np.ndarray], demand_matrix: np.ndarray, chunk_size: int = 10000):
-    """Solve using chunks of patterns sorted by score."""
-    items = list(shifts_coverage.items())
-    items.sort(key=lambda kv: score_pattern(kv[1], demand_matrix), reverse=True)
-    assignments_total: Dict[str, int] = {}
-    coverage = np.zeros_like(demand_matrix)
-    for i in range(0, len(items), chunk_size):
-        chunk = dict(items[i:i + chunk_size])
-        remaining = np.maximum(0, demand_matrix - coverage)
-        if not np.any(remaining):
-            break
-        assigns, _ = optimize_schedule_iterative(chunk, remaining)
-        for name, val in assigns.items():
-            assignments_total[name] = assignments_total.get(name, 0) + val
-            slots = len(chunk[name]) // 7
-            coverage += chunk[name].reshape(7, slots) * val
-        gc.collect()
-    return assignments_total
 
 # ——————————————————————————————————————————————————————————————
 # 6. Análisis de resultados
