@@ -1,6 +1,32 @@
 import unittest
 import numpy as np
-from json_shift_loader import load_shift_patterns
+import importlib.util
+from pathlib import Path
+from types import ModuleType
+import sys
+
+for name in ["streamlit", "seaborn", "pandas"]:
+    sys.modules.setdefault(name, ModuleType(name))
+sys.modules.setdefault("matplotlib", ModuleType("matplotlib"))
+sys.modules.setdefault("matplotlib.pyplot", ModuleType("matplotlib.pyplot"))
+pywork_sched = ModuleType("pyworkforce.scheduling")
+pywork_sched.MinAbsDifference = None
+sys.modules.setdefault("pyworkforce.scheduling", pywork_sched)
+pywork = ModuleType("pyworkforce")
+pywork.scheduling = pywork_sched
+sys.modules.setdefault("pyworkforce", pywork)
+
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "generador_turnos_2025_cnx_BACKUP_F_FIRST_P_LAST (1).py"
+module = ModuleType("loader")
+with open(SCRIPT_PATH, "r") as fh:
+    lines = []
+    for line in fh:
+        if line.startswith("try:"):
+            break
+        lines.append(line)
+    code = "".join(lines)
+exec(code, module.__dict__)
+load_shift_patterns = module.load_shift_patterns
 
 class LoaderTest(unittest.TestCase):
     def test_v1_format(self):
