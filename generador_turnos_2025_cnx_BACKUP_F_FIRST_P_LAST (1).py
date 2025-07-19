@@ -17,7 +17,7 @@ import re
 import gc
 import psutil
 
-from typing import Dict, List, Iterable, Union
+from typing import Dict, List, Iterable, Union, Sequence
 
 
 def _build_pattern(
@@ -68,6 +68,44 @@ def score_pattern(pattern: np.ndarray, demand_matrix: np.ndarray) -> int:
     return int(np.minimum(pat[:lim], dm[:lim]).sum())
 
 
+def get_smart_start_hours(
+    demand_matrix: np.ndarray,
+    step: float = 0.5,
+    max_hours: int = 15,
+) -> List[float]:
+    """Return a list of suggested start hours based on demand.
+
+    The algorithm averages demand across the week and selects the
+    highest demand slots rounded to ``step`` increments.  It returns up
+    to ``max_hours`` unique hours sorted ascending.  The typical number
+    of values is between 12 and 15 depending on ties."""
+
+    if demand_matrix.size == 0:
+        return list(np.arange(0, 24, step))
+
+    slots_per_day = demand_matrix.shape[1]
+    slot_factor = max(1, slots_per_day // 24)
+    avg_demand = demand_matrix.mean(axis=0)
+
+    indices = np.argsort(avg_demand)[::-1]
+    hours: List[float] = []
+    seen: set[float] = set()
+
+    for idx in indices:
+        hour = idx / slot_factor
+        hour = round(hour / step) * step
+        if hour >= 24:
+            continue
+        if hour not in seen:
+            hours.append(hour)
+            seen.add(hour)
+        if len(hours) >= max_hours:
+            break
+
+    hours.sort()
+    return hours
+
+
 def load_shift_patterns(
     cfg: Union[str, dict],
     *,
@@ -76,6 +114,10 @@ def load_shift_patterns(
     break_from_end: float = 2.0,
     slot_duration_minutes: int | None = 30,
     max_patterns: int | None = None,
+    max_patterns_per_shift: int | None = None,
+    smart_start_hours: bool = False,
+    demand_matrix: np.ndarray | None = None,
+    show_memory_usage: bool = False,
 ) -> Dict[str, np.ndarray]:
     """Parse JSON shift configuration and return pattern dictionary.
 
@@ -83,6 +125,11 @@ def load_shift_patterns(
     ``slot_duration_minutes`` defined inside each shift.  Passing ``None`` keeps
     the per-shift resolution intact.  When ``max_patterns`` is provided the
     generator stops once that many unique patterns have been produced.
+
+    ``max_patterns_per_shift`` limits how many patterns are returned for each
+    individual shift definition.  ``smart_start_hours`` combined with a
+    ``demand_matrix`` selects the most relevant start times using
+    :func:`get_smart_start_hours`.
     """
     if isinstance(cfg, str):
         with open(cfg, "r") as fh:
@@ -118,11 +165,12 @@ def load_shift_patterns(
             raise ValueError("slot_duration_minutes must divide 60")
         step = slot_min / 60
         slot_factor = 60 // slot_min
-        sh_hours = (
-            list(start_hours)
-            if start_hours is not None
-            else list(np.arange(0, 24, step))
-        )
+        if start_hours is not None:
+            sh_hours = list(start_hours)
+        elif smart_start_hours and demand_matrix is not None:
+            sh_hours = get_smart_start_hours(demand_matrix, step=step)
+        else:
+            sh_hours = list(np.arange(0, 24, step))
 
         work_days = pat.get("work_days", [])
         segments_spec = pat.get("segments", [])
@@ -157,6 +205,7 @@ def load_shift_patterns(
             brk_start = break_from_start
             brk_end = break_from_end
 
+        patterns_tmp: List[tuple[int, str, bytes, np.ndarray]] = []
         for days_sel in day_combos:
             for perm in set(permutations(segments, len(days_sel))):
                 for sh in sh_hours:
@@ -169,10 +218,30 @@ def load_shift_patterns(
                     day_str = "".join(map(str, days_sel))
                     seg_str = "_".join(map(str, perm))
                     shift_name = f"{name}_{sh:04.1f}_{day_str}_{seg_str}"
-                    shifts_coverage[shift_name] = pattern
-                    unique_patterns[pat_key] = shift_name
-                    if max_patterns is not None and len(shifts_coverage) >= max_patterns:
-                        return shifts_coverage
+                    score = (
+                        score_pattern(pattern, demand_matrix)
+                        if demand_matrix is not None
+                        else 0
+                    )
+                    patterns_tmp.append((score, shift_name, pat_key, pattern))
+
+        patterns_tmp.sort(key=lambda x: x[0], reverse=True)
+        added = 0
+        for _, shift_name, pat_key, pattern in patterns_tmp:
+            if pat_key in unique_patterns:
+                continue
+            shifts_coverage[shift_name] = pattern
+            unique_patterns[pat_key] = shift_name
+            added += 1
+            if max_patterns_per_shift is not None and added >= max_patterns_per_shift:
+                break
+            if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+                return shifts_coverage
+
+        if show_memory_usage:
+            mem = psutil.Process(os.getpid()).memory_info().rss / (1024 ** 2)
+            print(f"[load_shift_patterns] {name} memory usage: {mem:.1f} MB")
+        gc.collect()
 
     return shifts_coverage
 try:

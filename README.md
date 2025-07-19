@@ -37,6 +37,10 @@ Coverage calculations now use compact integer arrays to keep memory usage low du
 Shifts that start late in the evening automatically continue into the next
 day, so cross‑midnight schedules are fully supported.
 
+When a demand matrix is available you can call `load_shift_patterns()` with
+`smart_start_hours=True` to limit the examined start times to those returned
+by `get_smart_start_hours()`, typically around a dozen values.
+
 ## Perfil JEAN
 
 Incluye un perfil de optimización llamado **JEAN** que minimiza la suma de
@@ -141,11 +145,13 @@ for a complete example.
 
 `load_shift_patterns()` and the internal `generate_shifts_coverage_corrected()`
 functions accept an optional `max_patterns` argument. When omitted the loader
-now estimates how many patterns fit in roughly 4&nbsp;GB of the available
+estimates how many patterns fit in roughly 4&nbsp;GB of the available
 memory and caps generation automatically.  Patterns are generated and solved
 in batches, sorted by a quick heuristic score, so even 50&nbsp;000+ combinations
 can be handled without exhausting RAM.  `generate_shifts_coverage_corrected()`
-still honours the `batch_size` option to emit patterns in smaller chunks.
+still honours the `batch_size` option to emit patterns in smaller chunks.  A
+secondary limit `max_patterns_per_shift` restricts how many patterns are
+created for each individual shift definition.
 
 ## Testing
 
