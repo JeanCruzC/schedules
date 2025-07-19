@@ -34,6 +34,9 @@ Schedules are represented using 7×24 matrices. **Each slot corresponds to one h
 With hourly slots the JEAN profile can produce over a thousand possible patterns when all shift types are enabled (around 1360 for a full seven‑day demand).
 Coverage calculations now use compact integer arrays to keep memory usage low during optimization.
 
+Shifts that start late in the evening automatically continue into the next
+day, so cross‑midnight schedules are fully supported.
+
 ## Perfil JEAN
 
 Incluye un perfil de optimización llamado **JEAN** que minimiza la suma de
