@@ -134,6 +134,13 @@ A single file may also combine the JEAN slider parameters with the
 `shifts` array in **v2** format. See `examples/shift_config_jean_v2.json`
 for a complete example.
 
+## Limiting Generated Patterns
+
+Both `load_shift_patterns()` and the internal `generate_shifts_coverage_corrected()`
+function accept an optional `max_patterns` argument. When provided, pattern
+generation stops once this limit is reached which is useful during testing
+or when exploring large configuration spaces.
+
 ## Testing
 
 After installing the dependencies, run the test suite with:

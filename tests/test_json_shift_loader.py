@@ -44,5 +44,9 @@ class LoaderTest(unittest.TestCase):
         # ensure patterns are deduplicated
         self.assertEqual(len(data), 30240)
 
+    def test_max_patterns_limit(self):
+        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30, max_patterns=10)
+        self.assertEqual(len(data), 10)
+
 if __name__ == '__main__':
     unittest.main()
