@@ -17,7 +17,7 @@ import re
 import gc
 import psutil
 
-from typing import Dict, List, Iterable, Union
+from typing import Dict, List, Iterable, Union, Tuple
 
 
 def _build_pattern(
@@ -66,6 +66,25 @@ def score_pattern(pattern: np.ndarray, demand_matrix: np.ndarray) -> int:
     pat = pattern.astype(int)
     lim = min(len(dm), len(pat))
     return int(np.minimum(pat[:lim], dm[:lim]).sum())
+
+
+def monitor_memory_usage() -> float:
+    """Return the current memory usage as a fraction."""
+    return psutil.virtual_memory().percent / 100.0
+
+
+def adaptive_chunk_size(base_size: int, pattern_len: int, *, safety: float = 0.8) -> int:
+    """Adjust chunk size based on available memory."""
+    if pattern_len <= 0:
+        return base_size
+    avail = psutil.virtual_memory().available * safety
+    max_fit = int(avail // pattern_len)
+    return max(1, min(base_size, max_fit))
+
+
+def emergency_cleanup() -> None:
+    """Attempt to free memory in low-resource situations."""
+    gc.collect()
 
 
 def load_shift_patterns(
@@ -2705,23 +2724,65 @@ def export_detailed_schedule(assignments, shifts_coverage):
         df_shifts.to_excel(writer, sheet_name='Turnos_Asignados', index=False)
 
     return output.getvalue()
-def solve_in_chunks(shifts_coverage: Dict[str, np.ndarray], demand_matrix: np.ndarray, chunk_size: int = 10000):
+def solve_in_chunks(
+    shifts_coverage: Dict[str, np.ndarray],
+    demand_matrix: np.ndarray,
+    chunk_size: int = 10000,
+    *,
+    safe_memory: float = 0.9,
+):
     """Solve using chunks of patterns sorted by score."""
-    items = list(shifts_coverage.items())
-    items.sort(key=lambda kv: score_pattern(kv[1], demand_matrix), reverse=True)
+
+    # Remove duplicates and patterns with zero score
+    cleaned: List[Tuple[str, np.ndarray, int]] = []
+    seen: set[bytes] = set()
+    for name, pat in shifts_coverage.items():
+        key = pat.tobytes()
+        if key in seen:
+            continue
+        seen.add(key)
+        sc = score_pattern(pat, demand_matrix)
+        if sc > 0:
+            cleaned.append((name, pat, sc))
+
+    cleaned.sort(key=lambda x: x[2], reverse=True)
+    items = [(name, pat) for name, pat, _ in cleaned]
+
     assignments_total: Dict[str, int] = {}
     coverage = np.zeros_like(demand_matrix)
-    for i in range(0, len(items), chunk_size):
-        chunk = dict(items[i:i + chunk_size])
+    pattern_len = items[0][1].size if items else 0
+
+    i = 0
+    while i < len(items):
+        if monitor_memory_usage() >= safe_memory:
+            emergency_cleanup()
+            break
+
+        dynamic_size = adaptive_chunk_size(chunk_size, pattern_len, safety=1 - safe_memory)
+        chunk = dict(items[i : i + dynamic_size])
+
         remaining = np.maximum(0, demand_matrix - coverage)
         if not np.any(remaining):
             break
+
         assigns, _ = optimize_schedule_iterative(chunk, remaining)
         for name, val in assigns.items():
             assignments_total[name] = assignments_total.get(name, 0) + val
             slots = len(chunk[name]) // 7
             coverage += chunk[name].reshape(7, slots) * val
+
+        cov_pct = (
+            np.minimum(coverage, demand_matrix).sum() / max(1, demand_matrix.sum()) * 100
+        )
+        i += dynamic_size
         gc.collect()
+
+        if cov_pct >= TARGET_COVERAGE:
+            break
+        if monitor_memory_usage() >= safe_memory:
+            emergency_cleanup()
+            break
+
     return assignments_total
 
 
