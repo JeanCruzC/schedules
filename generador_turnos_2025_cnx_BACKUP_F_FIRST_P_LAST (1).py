@@ -14,6 +14,8 @@ import json
 import hashlib
 import os
 import re
+import gc
+import psutil
 
 from typing import Dict, List, Iterable, Union
 
@@ -46,6 +48,23 @@ def _build_pattern(
     return pattern.flatten()
 
 
+def memory_limit_patterns(slots_per_day: int) -> int:
+    """Return how many patterns fit in roughly 4GB of RAM."""
+    if slots_per_day <= 0:
+        return 0
+    available = psutil.virtual_memory().available
+    cap = min(available, 4 * 1024 ** 3)
+    return int(cap // (7 * slots_per_day))
+
+
+def score_pattern(pattern: np.ndarray, demand_matrix: np.ndarray) -> int:
+    """Quick heuristic score to sort patterns before solving."""
+    dm = demand_matrix.flatten()
+    pat = pattern.astype(int)
+    lim = min(len(dm), len(pat))
+    return int(np.minimum(pat[:lim], dm[:lim]).sum())
+
+
 def load_shift_patterns(
     cfg: Union[str, dict],
     *,
@@ -71,6 +90,14 @@ def load_shift_patterns(
     if slot_duration_minutes is not None:
         if 60 % slot_duration_minutes != 0:
             raise ValueError("slot_duration_minutes must divide 60")
+
+    base_slot_min = slot_duration_minutes
+    if base_slot_min is None:
+        mins = [shift.get("slot_duration_minutes", 60) for shift in data.get("shifts", [])]
+        base_slot_min = mins and min(mins) or 60
+    slots_per_day = 24 * (60 // base_slot_min)
+    if max_patterns is None:
+        max_patterns = memory_limit_patterns(slots_per_day)
 
     shifts_coverage: Dict[str, np.ndarray] = {}
     unique_patterns: Dict[bytes, str] = {}
@@ -797,8 +824,13 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
     
     # Horarios de inicio optimizados
     step = 0.5
+    slot_minutes = 60
     if optimization_profile == "JEAN Personalizado":
-        step = template_cfg.get("slot_duration_minutes", 30) / 60
+        slot_minutes = template_cfg.get("slot_duration_minutes", 30)
+        step = slot_minutes / 60
+    slots_per_day = 24 * (60 // slot_minutes)
+    if max_patterns is None:
+        max_patterns = memory_limit_patterns(slots_per_day)
 
     start_hours = [h for h in np.arange(0, 24, step) if h <= 23.5]
 
@@ -809,7 +841,7 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
             start_hours=start_hours,
             break_from_start=break_from_start,
             break_from_end=break_from_end,
-            slot_duration_minutes=int(step * 60),
+            slot_duration_minutes=slot_minutes,
             max_patterns=max_patterns,
         )
 
@@ -2701,7 +2733,8 @@ if st.button("🚀 Ejecutar Optimización", type="primary", use_container_width=
     st.info(f"🎯 Optimizando con {len(shifts_coverage)} patrones...")
     if PULP_AVAILABLE:
         st.success("🧠 **Solver Inteligente Activado** - Programación Lineal")
-    assignments, method = optimize_schedule_iterative(shifts_coverage, demand_matrix)
+    assignments = solve_in_chunks(shifts_coverage, demand_matrix)
+    method = "CHUNKED"
     
     if not assignments:
         st.error("⚠️ No se pudo encontrar una solución válida")
@@ -2948,6 +2981,26 @@ def optimize_schedule(shifts_coverage, demand_matrix):
     Usa optimización iterativa avanzada
     """
     return optimize_schedule_iterative(shifts_coverage, demand_matrix)
+
+
+def solve_in_chunks(shifts_coverage: Dict[str, np.ndarray], demand_matrix: np.ndarray, chunk_size: int = 10000):
+    """Solve using chunks of patterns sorted by score."""
+    items = list(shifts_coverage.items())
+    items.sort(key=lambda kv: score_pattern(kv[1], demand_matrix), reverse=True)
+    assignments_total: Dict[str, int] = {}
+    coverage = np.zeros_like(demand_matrix)
+    for i in range(0, len(items), chunk_size):
+        chunk = dict(items[i:i + chunk_size])
+        remaining = np.maximum(0, demand_matrix - coverage)
+        if not np.any(remaining):
+            break
+        assigns, _ = optimize_schedule_iterative(chunk, remaining)
+        for name, val in assigns.items():
+            assignments_total[name] = assignments_total.get(name, 0) + val
+            slots = len(chunk[name]) // 7
+            coverage += chunk[name].reshape(7, slots) * val
+        gc.collect()
+    return assignments_total
 
 # ——————————————————————————————————————————————————————————————
 # 6. Análisis de resultados
