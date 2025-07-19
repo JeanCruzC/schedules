@@ -50,7 +50,7 @@ def load_shift_patterns(
     start_hours: Iterable[float] | None = None,
     break_from_start: float = 2.0,
     break_from_end: float = 2.0,
-    slot_duration_minutes: int = 30,
+    slot_duration_minutes: int = 60,
 ) -> Dict[str, np.ndarray]:
     """Parse JSON shift configuration and return pattern dictionary."""
     if isinstance(cfg, str):
@@ -66,6 +66,8 @@ def load_shift_patterns(
         brk = shift.get("break", 0)
 
         slot_min = shift.get("slot_duration_minutes", slot_duration_minutes)
+        if slot_min != 60:
+            raise ValueError("Only slot_duration_minutes=60 is currently supported")
         step = slot_min / 60
         sh_hours = (
             list(start_hours)
@@ -767,9 +769,9 @@ def generate_shifts_coverage_corrected():
     current_patterns = 0
     
     # Horarios de inicio optimizados
-    step = 0.5
+    step = 1.0
     if optimization_profile == "JEAN Personalizado":
-        step = template_cfg.get("slot_duration_minutes", 30) / 60
+        step = template_cfg.get("slot_duration_minutes", 60) / 60
 
     start_hours = [h for h in np.arange(0, 24, step) if h <= 23.5]
 

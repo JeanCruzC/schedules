@@ -90,7 +90,8 @@ Example `examples/shift_config.json`:
 The loader also understands a **v2** format where each shift specifies the
 resolution of the start times, the number of segments per duration and a break
 window. Upload a file following this structure when using **JEAN Personalizado**
-to predefine the available patterns.
+to predefine the available patterns. Only a slot duration of 60 minutes is
+currently supported; files using a different value will be rejected.
 
 Example `examples/shift_config_v2.json`:
 
@@ -99,7 +100,7 @@ Example `examples/shift_config_v2.json`:
   "shifts": [
     {
       "name": "FT_12_9_6",
-      "slot_duration_minutes": 30,
+      "slot_duration_minutes": 60,
       "pattern": {
         "work_days": 6,
         "segments": [

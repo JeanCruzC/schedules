@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 from types import ModuleType
 import sys
+import json
 
 for name in ["streamlit", "seaborn", "pandas"]:
     sys.modules.setdefault(name, ModuleType(name))
@@ -40,6 +41,13 @@ class LoaderTest(unittest.TestCase):
         self.assertTrue(data)
         for arr in data.values():
             self.assertEqual(arr.shape, (7*24,))
+
+    def test_invalid_slot_duration(self):
+        with open('examples/shift_config_v2.json') as fh:
+            cfg = json.load(fh)
+        cfg['shifts'][0]['slot_duration_minutes'] = 30
+        with self.assertRaises(ValueError):
+            load_shift_patterns(cfg)
 
 if __name__ == '__main__':
     unittest.main()
