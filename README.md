@@ -147,6 +147,15 @@ in batches (2000 patterns by default), sorted by a quick heuristic score, so eve
 can be handled without exhausting RAM.  `generate_shifts_coverage_optimized()`
 still honours the `batch_size` option to emit patterns in smaller chunks.
 
+## Memory-aware Generation
+
+Several helper functions monitor memory usage during generation and
+optimization.  `monitor_memory_usage()` reports the current RAM usage,
+`adaptive_chunk_size()` scales the solver chunk size accordingly and
+`emergency_cleanup()` frees memory when consumption exceeds 85 %.  The
+loader can also derive optimal start hours via `get_smart_start_hours()`
+and limit permutations per shift with `max_patterns_per_shift`.
+
 ## Testing
 
 After installing the dependencies, run the test suite with:

@@ -60,6 +60,48 @@ def memory_limit_patterns(slots_per_day: int) -> int:
     return int(cap // (7 * slots_per_day))
 
 
+def monitor_memory_usage() -> float:
+    """Return current memory usage percentage."""
+    return psutil.virtual_memory().percent
+
+
+def adaptive_chunk_size(base: int = 5000) -> int:
+    """Return dynamic chunk size based on memory pressure."""
+    usage = monitor_memory_usage()
+    if usage > 80:
+        return max(1000, base // 4)
+    if usage > 60:
+        return max(2000, base // 2)
+    return base
+
+
+def emergency_cleanup(threshold: float = 85.0) -> bool:
+    """Trigger garbage collection if memory usage exceeds ``threshold``."""
+    if monitor_memory_usage() >= threshold:
+        gc.collect()
+        return True
+    return False
+
+
+def get_smart_start_hours(demand_matrix: np.ndarray, max_hours: int = 12) -> List[float]:
+    """Return a list of start hours around peak demand."""
+    if demand_matrix is None or demand_matrix.size == 0:
+        return [float(h) for h in range(24)]
+
+    cols = demand_matrix.shape[1]
+    hourly_totals = demand_matrix.sum(axis=0)
+    top = np.argsort(hourly_totals)[-max_hours:]
+    hours = sorted({round(h / cols * 24, 2) for h in top})
+    return hours
+
+
+def show_generation_progress(count: int, start_time: float) -> None:
+    """Display generation rate and memory usage."""
+    rate = count / max(1e-6, time.time() - start_time)
+    mem = monitor_memory_usage()
+    st.text(f"Patrones {count} | {rate:.1f}/s | Mem {mem:.1f}%")
+
+
 def score_pattern(pattern: np.ndarray, demand_matrix: np.ndarray) -> int:
     """Quick heuristic score to sort patterns before solving."""
     dm = demand_matrix.flatten()
@@ -86,6 +128,7 @@ def score_and_filter_patterns(
     keep_percentage: float = 0.3,
     peak_bonus: float = 1.5,
     critical_bonus: float = 2.0,
+    efficiency_bonus: float = 1.0,
 ) -> Dict[str, np.ndarray]:
     """Score patterns and keep the best subset.
 
@@ -127,6 +170,10 @@ def score_and_filter_patterns(
         dm_resized = _resize_matrix(dm, cols)
         coverage = np.minimum(pat_mat, dm_resized)
         score = coverage.sum()
+        total_hours = pat_mat.sum()
+        if total_hours > 0:
+            efficiency = coverage.sum() / total_hours
+            score += efficiency * efficiency_bonus
         if len(critical_days) > 0:
             score += coverage[critical_days].sum() * critical_bonus
         if len(peak_hours) > 0:
@@ -153,6 +200,9 @@ def load_shift_patterns(
     keep_percentage: float = 0.3,
     peak_bonus: float = 1.5,
     critical_bonus: float = 2.0,
+    efficiency_bonus: float = 1.0,
+    max_patterns_per_shift: int | None = None,
+    smart_start_hours: bool = False,
 ) -> Dict[str, np.ndarray]:
     """Parse JSON shift configuration and return pattern dictionary.
 
@@ -198,11 +248,16 @@ def load_shift_patterns(
             raise ValueError("slot_duration_minutes must divide 60")
         step = slot_min / 60
         slot_factor = 60 // slot_min
-        sh_hours = (
+        base_hours = (
             list(start_hours)
             if start_hours is not None
             else list(np.arange(0, 24, step))
         )
+        if smart_start_hours and demand_matrix is not None:
+            smart = get_smart_start_hours(demand_matrix)
+            sh_hours = [h for h in base_hours if any(abs(h - s) < step / 2 for s in smart)]
+        else:
+            sh_hours = base_hours
 
         work_days = pat.get("work_days", [])
         segments_spec = pat.get("segments", [])
@@ -237,6 +292,8 @@ def load_shift_patterns(
             brk_start = break_from_start
             brk_end = break_from_end
 
+
+        shift_patterns: Dict[str, np.ndarray] = {}
         for days_sel in day_combos:
             for perm in set(permutations(segments, len(days_sel))):
                 for sh in sh_hours:
@@ -249,19 +306,36 @@ def load_shift_patterns(
                     day_str = "".join(map(str, days_sel))
                     seg_str = "_".join(map(str, perm))
                     shift_name = f"{name}_{sh:04.1f}_{day_str}_{seg_str}"
-                    shifts_coverage[shift_name] = pattern
+                    shift_patterns[shift_name] = pattern
                     unique_patterns[pat_key] = shift_name
-                    if max_patterns is not None and len(shifts_coverage) >= max_patterns:
-                        if demand_matrix is not None:
-                            return score_and_filter_patterns(
-                                shifts_coverage,
-                                demand_matrix,
-                                keep_percentage=keep_percentage,
-                                peak_bonus=peak_bonus,
-                                critical_bonus=critical_bonus,
-                            )
-                        return shifts_coverage
+                    if max_patterns_per_shift and len(shift_patterns) >= max_patterns_per_shift:
+                        break
+                    if max_patterns is not None and len(shifts_coverage) + len(shift_patterns) >= max_patterns:
+                        break
+                if max_patterns_per_shift and len(shift_patterns) >= max_patterns_per_shift:
+                    break
+                if max_patterns is not None and len(shifts_coverage) + len(shift_patterns) >= max_patterns:
+                    break
+            if max_patterns_per_shift and len(shift_patterns) >= max_patterns_per_shift:
+                break
+            if max_patterns is not None and len(shifts_coverage) + len(shift_patterns) >= max_patterns:
+                break
 
+        if demand_matrix is not None:
+            shift_patterns = score_and_filter_patterns(
+                shift_patterns,
+                demand_matrix,
+                keep_percentage=keep_percentage,
+                peak_bonus=peak_bonus,
+                critical_bonus=critical_bonus,
+                efficiency_bonus=efficiency_bonus,
+            )
+
+        shifts_coverage.update(shift_patterns)
+        monitor_memory_usage()
+        gc.collect()
+        if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+            return shifts_coverage
     if demand_matrix is not None:
         shifts_coverage = score_and_filter_patterns(
             shifts_coverage,
@@ -269,6 +343,7 @@ def load_shift_patterns(
             keep_percentage=keep_percentage,
             peak_bonus=peak_bonus,
             critical_bonus=critical_bonus,
+            efficiency_bonus=efficiency_bonus,
         )
     return shifts_coverage
 try:
@@ -1224,6 +1299,7 @@ def generate_shifts_coverage_optimized(
     status = st.empty()
 
     selected = 0
+    start_time = time.time()
     seen: set[bytes] = set()
 
     inner = generate_shifts_coverage_corrected(batch_size=batch_size)
@@ -1245,6 +1321,7 @@ def generate_shifts_coverage_optimized(
                 status.text(f"Patrones {selected}/{max_patterns}")
             else:
                 status.text(f"Patrones {selected}")
+            show_generation_progress(selected, start_time)
             yield batch
             gc.collect()
         if max_patterns is not None and selected >= max_patterns:
@@ -2860,23 +2937,42 @@ def export_detailed_schedule(assignments, shifts_coverage):
         df_shifts.to_excel(writer, sheet_name='Turnos_Asignados', index=False)
 
     return output.getvalue()
-def solve_in_chunks(shifts_coverage: Dict[str, np.ndarray], demand_matrix: np.ndarray, chunk_size: int = 10000):
-    """Solve using chunks of patterns sorted by score."""
-    items = list(shifts_coverage.items())
-    items.sort(key=lambda kv: score_pattern(kv[1], demand_matrix), reverse=True)
+def solve_in_chunks_optimized(
+    shifts_coverage: Dict[str, np.ndarray],
+    demand_matrix: np.ndarray,
+    base_chunk_size: int = 10000,
+) -> Dict[str, int]:
+    """Solve using adaptive chunks sorted by score."""
+    scored = []
+    seen: set[bytes] = set()
+    for name, pat in shifts_coverage.items():
+        key = hashlib.md5(pat).digest()
+        if key in seen:
+            continue
+        seen.add(key)
+        scored.append((name, pat, score_pattern(pat, demand_matrix)))
+
+    scored.sort(key=lambda x: x[2], reverse=True)
+
     assignments_total: Dict[str, int] = {}
     coverage = np.zeros_like(demand_matrix)
-    for i in range(0, len(items), chunk_size):
-        chunk = dict(items[i:i + chunk_size])
+    idx = 0
+    while idx < len(scored):
+        chunk_size = adaptive_chunk_size(base_chunk_size)
+        chunk_dict = {name: pat for name, pat, _ in scored[idx: idx + chunk_size]}
         remaining = np.maximum(0, demand_matrix - coverage)
         if not np.any(remaining):
             break
-        assigns, _ = optimize_schedule_iterative(chunk, remaining)
+        assigns, _ = optimize_schedule_iterative(chunk_dict, remaining)
         for name, val in assigns.items():
             assignments_total[name] = assignments_total.get(name, 0) + val
-            slots = len(chunk[name]) // 7
-            coverage += chunk[name].reshape(7, slots) * val
+            slots = len(chunk_dict[name]) // 7
+            coverage += chunk_dict[name].reshape(7, slots) * val
+        idx += chunk_size
         gc.collect()
+        emergency_cleanup()
+        if not np.any(np.maximum(0, demand_matrix - coverage)):
+            break
     return assignments_total
 
 
@@ -2902,8 +2998,8 @@ if st.button("🚀 Ejecutar Optimización", type="primary", use_container_width=
     st.info(f"🎯 Optimizando con {len(shifts_coverage)} patrones...")
     if PULP_AVAILABLE:
         st.success("🧠 **Solver Inteligente Activado** - Programación Lineal")
-    assignments = solve_in_chunks(shifts_coverage, demand_matrix)
-    method = "CHUNKED"
+    assignments = solve_in_chunks_optimized(shifts_coverage, demand_matrix)
+    method = "CHUNKED_OPT"
     
     if not assignments:
         st.error("⚠️ No se pudo encontrar una solución válida")
