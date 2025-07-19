@@ -52,16 +52,21 @@ def load_shift_patterns(
     start_hours: Iterable[float] | None = None,
     break_from_start: float = 2.0,
     break_from_end: float = 2.0,
-    slot_duration_minutes: int = 30,
+    slot_duration_minutes: int | None = 30,
 ) -> Dict[str, np.ndarray]:
-    """Parse JSON shift configuration and return pattern dictionary."""
+    """Parse JSON shift configuration and return pattern dictionary.
+
+    If ``slot_duration_minutes`` is provided it overrides the value of
+    ``slot_duration_minutes`` defined inside each shift.  Passing ``None`` keeps
+    the per-shift resolution intact.
+    """
     if isinstance(cfg, str):
         with open(cfg, "r") as fh:
             data = json.load(fh)
     else:
         data = cfg
 
-    if 60 % slot_duration_minutes != 0:
+    if slot_duration_minutes is not None and 60 % slot_duration_minutes != 0:
         raise ValueError("slot_duration_minutes must divide 60")
 
     shifts_coverage: Dict[str, np.ndarray] = {}
@@ -71,7 +76,11 @@ def load_shift_patterns(
         pat = shift.get("pattern", {})
         brk = shift.get("break", 0)
 
-        slot_min = shift.get("slot_duration_minutes", slot_duration_minutes)
+        slot_min = (
+            slot_duration_minutes
+            if slot_duration_minutes is not None
+            else shift.get("slot_duration_minutes", 60)
+        )
         if 60 % slot_min != 0:
             raise ValueError("slot_duration_minutes must divide 60")
         step = slot_min / 60
