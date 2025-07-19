@@ -1974,7 +1974,7 @@ def evaluate_solution_quality(coverage_matrix, demand_matrix):
 
 def generate_weekly_pattern(start_hour, duration, working_days, dso_day=None, break_len=1):
     """Genera patrón semanal con breaks inteligentes"""
-    pattern = np.zeros((7, 24))
+    pattern = np.zeros((7, 24), dtype=np.int8)
     
     for day in working_days:
         if day != dso_day:  # Excluir día de descanso
@@ -2071,7 +2071,7 @@ def get_valid_break_times(start_hour, duration):
 
 def generate_weekly_pattern_with_break(start_hour, duration, working_days, dso_day, break_start, break_len=1):
     """Genera patrón semanal con break específico - CORREGIDO para turnos que cruzan medianoche"""
-    pattern = np.zeros((7, 24))
+    pattern = np.zeros((7, 24), dtype=np.int8)
     
     for day in working_days:
         if day == dso_day:
@@ -2102,7 +2102,7 @@ def generate_weekly_pattern_with_break(start_hour, duration, working_days, dso_d
 
 def generate_weekly_pattern_simple(start_hour, duration, working_days):
     """Genera patrón semanal simple sin break (para PT)"""
-    pattern = np.zeros((7, 24))
+    pattern = np.zeros((7, 24), dtype=np.int8)
     
     for day in working_days:
         for h in range(duration):
@@ -2114,7 +2114,7 @@ def generate_weekly_pattern_simple(start_hour, duration, working_days):
 
 def generate_weekly_pattern_pt5(start_hour, working_days):
     """Genera patrón de 24h para PT5 (5h en cuatro días y 4h en uno)"""
-    pattern = np.zeros((7, 24))
+    pattern = np.zeros((7, 24), dtype=np.int8)
 
     if not working_days:
         return pattern.flatten()
@@ -2131,7 +2131,7 @@ def generate_weekly_pattern_pt5(start_hour, working_days):
 
 def generate_weekly_pattern_10h8(start_hour, working_days, eight_hour_day, break_len=1):
     """Genera patrón con cuatro días de 10h y uno de 8h"""
-    pattern = np.zeros((7, 24))
+    pattern = np.zeros((7, 24), dtype=np.int8)
 
     for day in working_days:
         duration = 8 if day == eight_hour_day else 10
@@ -2157,7 +2157,7 @@ def generate_weekly_pattern_10h8(start_hour, working_days, eight_hour_day, break
 
 def generate_weekly_pattern_advanced(start_hour, duration, working_days, break_position):
     """Genera patrón semanal avanzado con break posicionado dinámicamente"""
-    pattern = np.zeros((7, 24))
+    pattern = np.zeros((7, 24), dtype=np.int8)
     
     for day in working_days:
         # Marcar horas de trabajo
