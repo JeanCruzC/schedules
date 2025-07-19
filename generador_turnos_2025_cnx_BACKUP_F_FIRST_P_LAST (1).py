@@ -34,17 +34,20 @@ def _build_pattern(
     pattern = np.zeros((7, slots_per_day), dtype=np.int8)
     for day, dur in zip(days, durations):
         for s in range(int(dur * slot_factor)):
-            idx = int(start_hour * slot_factor + s) % slots_per_day
-            pattern[day, idx] = 1
+            slot = int(start_hour * slot_factor) + s
+            d_off, idx = divmod(slot, slots_per_day)
+            pattern[(day + d_off) % 7, idx] = 1
         if break_len:
-            b_start = int((start_hour + break_from_start) * slot_factor) % slots_per_day
-            b_end = int((start_hour + dur - break_from_end) * slot_factor) % slots_per_day
+            b_start = int((start_hour + break_from_start) * slot_factor)
+            b_end = int((start_hour + dur - break_from_end) * slot_factor)
             if b_start < b_end:
                 b_slot = b_start + (b_end - b_start) // 2
             else:
                 b_slot = b_start
             for b in range(int(break_len * slot_factor)):
-                pattern[day, (b_slot + b) % slots_per_day] = 0
+                slot = b_slot + b
+                d_off, idx = divmod(slot, slots_per_day)
+                pattern[(day + d_off) % 7, idx] = 0
     return pattern.flatten()
 
 
@@ -2291,29 +2294,29 @@ def evaluate_solution_quality(coverage_matrix, demand_matrix):
 def generate_weekly_pattern(start_hour, duration, working_days, dso_day=None, break_len=1):
     """Genera patrón semanal con breaks inteligentes"""
     pattern = np.zeros((7, 24), dtype=np.int8)
-    
+
     for day in working_days:
         if day != dso_day:  # Excluir día de descanso
             for h in range(duration):
-                hour_idx = int(start_hour + h) % 24
-                if hour_idx < 24:
-                    pattern[day, hour_idx] = 1
-            
-            # Aplicar break inteligente
-            break_start_idx = int(start_hour + break_from_start) % 24
-            break_end_idx = int(start_hour + duration - break_from_end) % 24
-            
-            # Seleccionar hora de break óptima
-            if break_start_idx < break_end_idx:
-                break_hour = break_start_idx + (break_end_idx - break_start_idx) // 2
+                t = start_hour + h
+                d_off, idx = divmod(int(t), 24)
+                pattern[(day + d_off) % 7, idx] = 1
+
+            break_start_idx = start_hour + break_from_start
+            break_end_idx = start_hour + duration - break_from_end
+
+            if int(break_start_idx) < int(break_end_idx):
+                break_hour = int(break_start_idx) + (
+                    int(break_end_idx) - int(break_start_idx)
+                ) // 2
             else:
-                break_hour = break_start_idx
-            
-            if break_hour < 24:
-                for b in range(int(break_len)):
-                    idx = (break_hour + b) % 24
-                    pattern[day, idx] = 0
-    
+                break_hour = int(break_start_idx)
+
+            for b in range(int(break_len)):
+                t = break_hour + b
+                d_off, idx = divmod(int(t), 24)
+                pattern[(day + d_off) % 7, idx] = 0
+
     return pattern.flatten()
 
 def generate_shift_patterns():
@@ -2388,44 +2391,33 @@ def get_valid_break_times(start_hour, duration):
 def generate_weekly_pattern_with_break(start_hour, duration, working_days, dso_day, break_start, break_len=1):
     """Genera patrón semanal con break específico - CORREGIDO para turnos que cruzan medianoche"""
     pattern = np.zeros((7, 24), dtype=np.int8)
-    
+
     for day in working_days:
         if day == dso_day:
             continue
-            
-        # Marcar horas de trabajo (manejando cruce de medianoche)
+
         for h in range(duration):
-            hour_idx = int(start_hour + h) % 24
-            pattern[day, hour_idx] = 1
-        
-        # Aplicar break de `break_len` horas (asegurar que esté en rango válido)
-        break_hour = int(break_start) % 24
-        # Solo aplicar break si está dentro del turno
-        work_start = int(start_hour) % 24
-        work_end = int(start_hour + duration) % 24
-        
-        # Verificar si el break está en el rango de trabajo
-        if work_start <= work_end:  # Turno no cruza medianoche
-            if work_start <= break_hour < work_end:
-                for b in range(int(break_len)):
-                    pattern[day, (break_hour + b) % 24] = 0
-        else:  # Turno cruza medianoche
-            if break_hour >= work_start or break_hour < work_end:
-                for b in range(int(break_len)):
-                    pattern[day, (break_hour + b) % 24] = 0
-    
+            t = start_hour + h
+            d_off, idx = divmod(int(t), 24)
+            pattern[(day + d_off) % 7, idx] = 1
+
+        for b in range(int(break_len)):
+            t = break_start + b
+            d_off, idx = divmod(int(t), 24)
+            pattern[(day + d_off) % 7, idx] = 0
+
     return pattern.flatten()
 
 def generate_weekly_pattern_simple(start_hour, duration, working_days):
     """Genera patrón semanal simple sin break (para PT)"""
     pattern = np.zeros((7, 24), dtype=np.int8)
-    
+
     for day in working_days:
         for h in range(duration):
-            hour_idx = int(start_hour + h) % 24
-            if hour_idx < 24:
-                pattern[day, hour_idx] = 1
-    
+            t = start_hour + h
+            d_off, idx = divmod(int(t), 24)
+            pattern[(day + d_off) % 7, idx] = 1
+
     return pattern.flatten()
 
 def generate_weekly_pattern_pt5(start_hour, working_days):
@@ -2439,9 +2431,9 @@ def generate_weekly_pattern_pt5(start_hour, working_days):
     for day in working_days:
         hours = 4 if day == four_hour_day else 5
         for h in range(hours):
-            hour_idx = int(start_hour + h) % 24
-            if hour_idx < 24:
-                pattern[day, hour_idx] = 1
+            t = start_hour + h
+            d_off, idx = divmod(int(t), 24)
+            pattern[(day + d_off) % 7, idx] = 1
 
     return pattern.flatten()
 
@@ -2452,19 +2444,22 @@ def generate_weekly_pattern_10h8(start_hour, working_days, eight_hour_day, break
     for day in working_days:
         duration = 8 if day == eight_hour_day else 10
         for h in range(duration):
-            hour_idx = int(start_hour + h) % 24
-            if hour_idx < 24:
-                pattern[day, hour_idx] = 1
+            t = start_hour + h
+            d_off, idx = divmod(int(t), 24)
+            pattern[(day + d_off) % 7, idx] = 1
 
-        break_start_idx = int(start_hour + break_from_start) % 24
-        break_end_idx = int(start_hour + duration - break_from_end) % 24
-        if break_start_idx < break_end_idx:
-            break_hour = break_start_idx + (break_end_idx - break_start_idx) // 2
+        break_start_idx = start_hour + break_from_start
+        break_end_idx = start_hour + duration - break_from_end
+        if int(break_start_idx) < int(break_end_idx):
+            break_hour = int(break_start_idx) + (
+                int(break_end_idx) - int(break_start_idx)
+            ) // 2
         else:
-            break_hour = break_start_idx
-        if break_hour < 24:
-            for b in range(int(break_len)):
-                pattern[day, (break_hour + b) % 24] = 0
+            break_hour = int(break_start_idx)
+        for b in range(int(break_len)):
+            t = break_hour + b
+            d_off, idx = divmod(int(t), 24)
+            pattern[(day + d_off) % 7, idx] = 0
 
     return pattern.flatten()
 

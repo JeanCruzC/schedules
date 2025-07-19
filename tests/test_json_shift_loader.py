@@ -45,5 +45,13 @@ class LoaderTest(unittest.TestCase):
         data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30, max_patterns=10)
         self.assertEqual(len(data), 10)
 
+    def test_cross_midnight_pattern(self):
+        pat = module._build_pattern([0], [4], 23, 0, 2, 2, 1)
+        mat = pat.reshape(7, 24)
+        self.assertEqual(mat[0, 23], 1)
+        self.assertEqual(mat[1, 0], 1)
+        self.assertEqual(mat[1, 1], 1)
+        self.assertEqual(mat[1, 2], 1)
+
 if __name__ == '__main__':
     unittest.main()
