@@ -41,5 +41,8 @@ class LoaderTest(unittest.TestCase):
         for arr in data.values():
             self.assertEqual(arr.shape, (7*24,))
 
+        # ensure patterns are deduplicated
+        self.assertEqual(len(data), 15120)
+
 if __name__ == '__main__':
     unittest.main()
