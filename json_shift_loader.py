@@ -7,7 +7,7 @@ from typing import Dict, List, Iterable, Union
 def _build_pattern(days: Iterable[int], durations: Iterable[int], start_hour: float,
                    break_len: float, break_from_start: float, break_from_end: float) -> np.ndarray:
     """Return flattened 7x24 matrix for given days/durations."""
-    pattern = np.zeros((7, 24))
+    pattern = np.zeros((7, 24), dtype=np.int8)
     for day, dur in zip(days, durations):
         for h in range(int(dur)):
             idx = int(start_hour + h) % 24
