@@ -1108,6 +1108,59 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
     return
 
 
+def generate_shifts_coverage_optimized(
+    demand_matrix: np.ndarray,
+    *,
+    max_patterns: int | None = None,
+    batch_size: int = 2000,
+    quality_threshold: int = 0,
+) -> Iterable[dict[str, np.ndarray]]:
+    """Generate and score patterns in batches.
+
+    Patterns are produced using ``generate_shifts_coverage_corrected`` and
+    filtered immediately based on ``score_pattern``.  Only patterns with a score
+    at least ``quality_threshold`` are yielded.  Duplicates are removed using a
+    set of hashes and generation stops once ``max_patterns`` patterns have been
+    emitted.
+    """
+
+    progress = st.progress(0.0)
+    status = st.empty()
+
+    selected = 0
+    seen: set[bytes] = set()
+
+    inner = generate_shifts_coverage_corrected(batch_size=batch_size)
+    for raw_batch in inner:
+        batch: dict[str, np.ndarray] = {}
+        for name, pat in raw_batch.items():
+            key = hashlib.md5(pat).digest()
+            if key in seen:
+                continue
+            seen.add(key)
+            if score_pattern(pat, demand_matrix) >= quality_threshold:
+                batch[name] = pat
+                selected += 1
+                if max_patterns is not None and selected >= max_patterns:
+                    break
+        if batch:
+            if max_patterns:
+                progress.progress(min(selected / max_patterns, 1.0))
+                status.text(f"Patrones {selected}/{max_patterns}")
+            else:
+                status.text(f"Patrones {selected}")
+            yield batch
+            gc.collect()
+        if max_patterns is not None and selected >= max_patterns:
+            break
+
+    progress.progress(1.0)
+    status.text(f"Total patrones válidos: {selected}")
+    time.sleep(1)
+    progress.empty()
+    status.empty()
+
+
 # ——————————————————————————————————————————————————————————————
 # 5. Función de optimización
 # ——————————————————————————————————————————————————————————————
@@ -2736,7 +2789,7 @@ if st.button("🚀 Ejecutar Optimización", type="primary", use_container_width=
     # Generar patrones de turnos
     st.info("🔄 Generando patrones de turnos...")
     shifts_coverage = {}
-    for batch in generate_shifts_coverage_corrected():
+    for batch in generate_shifts_coverage_optimized(demand_matrix):
         shifts_coverage.update(batch)
     
     if not shifts_coverage:
