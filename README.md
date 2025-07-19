@@ -139,12 +139,12 @@ for a complete example.
 
 ## Limiting Generated Patterns
 
-`load_shift_patterns()` and the internal `generate_shifts_coverage_corrected()`
+`load_shift_patterns()` and the internal `generate_shifts_coverage_optimized()`
 functions accept an optional `max_patterns` argument. When omitted the loader
 now estimates how many patterns fit in roughly 4&nbsp;GB of the available
 memory and caps generation automatically.  Patterns are generated and solved
-in batches, sorted by a quick heuristic score, so even 50&nbsp;000+ combinations
-can be handled without exhausting RAM.  `generate_shifts_coverage_corrected()`
+in batches (2000 patterns by default), sorted by a quick heuristic score, so even 50&nbsp;000+ combinations
+can be handled without exhausting RAM.  `generate_shifts_coverage_optimized()`
 still honours the `batch_size` option to emit patterns in smaller chunks.
 
 ## Testing
