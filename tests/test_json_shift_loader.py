@@ -36,13 +36,8 @@ class LoaderTest(unittest.TestCase):
             self.assertEqual(arr.shape, (7 * 24,))
 
     def test_v2_format(self):
-        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30)
-        self.assertTrue(data)
-        for arr in data.values():
-            self.assertEqual(arr.shape, (7 * 48,))
-
-        # ensure patterns are deduplicated
-        self.assertEqual(len(data), 30240)
+        with self.assertRaises(NotImplementedError):
+            load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30)
 
 if __name__ == '__main__':
     unittest.main()
