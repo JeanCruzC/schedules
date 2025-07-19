@@ -36,8 +36,10 @@ class LoaderTest(unittest.TestCase):
             self.assertEqual(arr.shape, (7 * 24,))
 
     def test_v2_format(self):
-        with self.assertRaises(NotImplementedError):
-            load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30)
+        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30)
+        self.assertTrue(data)
+        for arr in data.values():
+            self.assertEqual(arr.shape, (7 * 48,))
 
     def test_max_patterns_limit(self):
         data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30, max_patterns=10)
