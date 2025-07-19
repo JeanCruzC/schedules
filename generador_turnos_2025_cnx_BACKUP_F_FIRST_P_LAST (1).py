@@ -50,17 +50,23 @@ def load_shift_patterns(
     cfg: Union[str, dict],
     *,
     start_hours: Iterable[float] | None = None,
+    start_hour_range: Iterable[float] | None = None,
     break_from_start: float = 2.0,
     break_from_end: float = 2.0,
     slot_duration_minutes: int | None = 30,
     max_patterns: int | None = None,
+    quality_threshold: float | None = None,
 ) -> Dict[str, np.ndarray]:
     """Parse JSON shift configuration and return pattern dictionary.
 
     If ``slot_duration_minutes`` is provided it overrides the value of
-    ``slot_duration_minutes`` defined inside each shift.  Passing ``None`` keeps
-    the per-shift resolution intact.  When ``max_patterns`` is provided the
-    generator stops once that many unique patterns have been produced.
+    ``slot_duration_minutes`` defined inside each shift. Passing ``None`` keeps
+    the per-shift resolution intact.
+
+    ``start_hour_range`` allows restricting the candidate start hours while
+    ``quality_threshold`` discards patterns whose total hours fall below the
+    given value. When ``max_patterns`` is provided the generator stops once that
+    many unique patterns have been produced.
     """
     if isinstance(cfg, str):
         with open(cfg, "r") as fh:
@@ -88,11 +94,16 @@ def load_shift_patterns(
             raise ValueError("slot_duration_minutes must divide 60")
         step = slot_min / 60
         slot_factor = 60 // slot_min
-        sh_hours = (
-            list(start_hours)
-            if start_hours is not None
-            else list(np.arange(0, 24, step))
-        )
+        hours_range = start_hour_range
+        if hours_range is None:
+            hours_range = shift.get("start_hour_range")
+
+        if hours_range is not None:
+            sh_hours = [float(h) for h in hours_range]
+        elif start_hours is not None:
+            sh_hours = list(start_hours)
+        else:
+            sh_hours = list(np.arange(0, 24, step))
 
         work_days = pat.get("work_days", [])
         segments_spec = pat.get("segments", [])
@@ -132,7 +143,10 @@ def load_shift_patterns(
                 for sh in sh_hours:
                     pattern = _build_pattern(
                         days_sel, perm, sh, brk_len, brk_start, brk_end, slot_factor
-                    )
+                    ).astype(np.int8, copy=False)
+                    quality = pattern.sum() / slot_factor
+                    if quality_threshold is not None and quality < quality_threshold:
+                        continue
                     pat_key = pattern.tobytes()
                     if pat_key in unique_patterns:
                         continue
@@ -805,7 +819,7 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None):
     if optimization_profile == "JEAN Personalizado":
         shifts_coverage = load_shift_patterns(
             template_cfg,
-            start_hours=start_hours,
+            start_hour_range=start_hours,
             break_from_start=break_from_start,
             break_from_end=break_from_end,
             slot_duration_minutes=int(step * 60),

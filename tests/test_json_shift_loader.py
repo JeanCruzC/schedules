@@ -45,5 +45,9 @@ class LoaderTest(unittest.TestCase):
         data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30, max_patterns=10)
         self.assertEqual(len(data), 10)
 
+    def test_start_hour_range(self):
+        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30, start_hour_range=[0])
+        self.assertTrue(all('_00.0_' in name for name in data))
+
 if __name__ == '__main__':
     unittest.main()

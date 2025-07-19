@@ -107,6 +107,7 @@ Example `examples/shift_config_v2.json`:
     {
       "name": "FT_12_9_6",
       "slot_duration_minutes": 30,
+      "start_hour_range": [0, 12],
       "pattern": {
         "work_days": 6,
         "segments": [
@@ -137,9 +138,12 @@ for a complete example.
 ## Limiting Generated Patterns
 
 Both `load_shift_patterns()` and the internal `generate_shifts_coverage_corrected()`
-function accept an optional `max_patterns` argument. When provided, pattern
-generation stops once this limit is reached which is useful during testing
-or when exploring large configuration spaces.
+function accept optional parameters to keep the number of candidates manageable.
+
+- `start_hour_range` restricts the allowed start times (default is every 30 minutes).
+- `quality_threshold` drops patterns whose total hours fall below the given score.
+- `max_patterns` stops generation once this limit is reached which is useful during
+  testing or when exploring large configuration spaces.
 
 ## Testing
 

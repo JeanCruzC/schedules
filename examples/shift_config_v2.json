@@ -3,6 +3,7 @@
     {
       "name": "FT_12_9_6",
       "slot_duration_minutes": 30,
+      "start_hour_range": [0, 12],
       "pattern": {
         "work_days": 6,
         "segments": [
