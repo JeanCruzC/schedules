@@ -2287,7 +2287,7 @@ def analyze_results(assignments, shifts_coverage, demand_matrix):
         return None
     
     # Calcular cobertura total
-    total_coverage = np.zeros((7, 24))
+    total_coverage = np.zeros((7, 24), dtype=np.int16)
     total_agents = 0
     ft_agents = 0
     pt_agents = 0
@@ -2772,7 +2772,7 @@ def analyze_coverage_precision(assignments, shifts_coverage, demand_matrix):
         return None
     
     # Calcular cobertura total
-    total_coverage = np.zeros((7, 24))
+    total_coverage = np.zeros((7, 24), dtype=np.int16)
     for shift_name, count in assignments.items():
         weekly_pattern = shifts_coverage[shift_name]
         pattern_matrix = np.array(weekly_pattern).reshape(7, 24)
