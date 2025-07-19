@@ -28,6 +28,7 @@ with open(SCRIPT_PATH, "r") as fh:
 exec(code, module.__dict__)
 load_shift_patterns = module.load_shift_patterns
 score_and_filter_patterns = module.score_and_filter_patterns
+get_smart_start_hours = module.get_smart_start_hours
 
 class LoaderTest(unittest.TestCase):
     def test_v1_format(self):
@@ -73,5 +74,28 @@ class LoaderTest(unittest.TestCase):
         self.assertEqual(len(data), 1)
         self.assertIn("PEAK_12.0_0_1", data)
 
+    def test_smart_start_hours(self):
+        demand = np.zeros((7, 24))
+        demand[:, 8:11] = 5
+        hours = get_smart_start_hours(demand, max_hours=5)
+        self.assertTrue(8.0 in hours or 9.0 in hours)
+        self.assertLessEqual(len(hours), 5)
+
+    def test_max_patterns_per_shift(self):
+        cfg = {"shifts": [{"name": "A", "pattern": {"work_days": [0], "segments": [1]}, "break": 0}]}
+        data = load_shift_patterns(cfg, start_hours=[0, 1, 2], slot_duration_minutes=60, max_patterns_per_shift=2)
+        self.assertLessEqual(len(data), 2)
+
+    def test_efficiency_bonus(self):
+        patterns = {
+            "LONG": module._build_pattern([0], [2], 0, 0, 0, 0, 1),
+            "SHORT": module._build_pattern([0], [1], 0, 0, 0, 0, 1),
+        }
+        demand = np.zeros((7, 24))
+        demand[0, 0] = 1
+        result = score_and_filter_patterns(patterns, demand, keep_percentage=0.5, efficiency_bonus=10)
+        self.assertEqual(set(result.keys()), {"SHORT"})
+
 if __name__ == '__main__':
     unittest.main()
+
