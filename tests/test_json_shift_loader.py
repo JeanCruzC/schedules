@@ -30,19 +30,19 @@ load_shift_patterns = module.load_shift_patterns
 
 class LoaderTest(unittest.TestCase):
     def test_v1_format(self):
-        data = load_shift_patterns('examples/shift_config.json')
+        data = load_shift_patterns('examples/shift_config.json', slot_duration_minutes=60)
         self.assertTrue(data)
         for arr in data.values():
-            self.assertEqual(arr.shape, (7*24,))
+            self.assertEqual(arr.shape, (7 * 24,))
 
     def test_v2_format(self):
-        data = load_shift_patterns('examples/shift_config_v2.json')
+        data = load_shift_patterns('examples/shift_config_v2.json', slot_duration_minutes=30)
         self.assertTrue(data)
         for arr in data.values():
-            self.assertEqual(arr.shape, (7*24,))
+            self.assertEqual(arr.shape, (7 * 48,))
 
         # ensure patterns are deduplicated
-        self.assertEqual(len(data), 15120)
+        self.assertEqual(len(data), 30240)
 
 if __name__ == '__main__':
     unittest.main()
