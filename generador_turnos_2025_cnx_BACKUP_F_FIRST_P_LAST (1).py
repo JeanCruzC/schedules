@@ -68,6 +68,79 @@ def score_pattern(pattern: np.ndarray, demand_matrix: np.ndarray) -> int:
     return int(np.minimum(pat[:lim], dm[:lim]).sum())
 
 
+def _resize_matrix(matrix: np.ndarray, target_cols: int) -> np.ndarray:
+    """Return ``matrix`` with the number of columns adjusted to ``target_cols``."""
+    if matrix.shape[1] == target_cols:
+        return matrix
+    if matrix.shape[1] < target_cols:
+        factor = target_cols // matrix.shape[1]
+        return np.repeat(matrix, factor, axis=1)
+    factor = matrix.shape[1] // target_cols
+    return matrix.reshape(matrix.shape[0], target_cols, factor).max(axis=2)
+
+
+def score_and_filter_patterns(
+    patterns: Dict[str, np.ndarray],
+    demand_matrix: np.ndarray | None,
+    *,
+    keep_percentage: float = 0.3,
+    peak_bonus: float = 1.5,
+    critical_bonus: float = 2.0,
+) -> Dict[str, np.ndarray]:
+    """Score patterns and keep the best subset.
+
+    Parameters
+    ----------
+    patterns:
+        Mapping of pattern name to flattened coverage matrix.
+    demand_matrix:
+        Weekly demand matrix. If ``None`` no filtering is applied.
+    keep_percentage:
+        Fraction of patterns to keep. Defaults to ``0.3``.
+    peak_bonus, critical_bonus:
+        Multipliers for hours identified as peak or critical.
+    """
+
+    if demand_matrix is None or not patterns:
+        return patterns
+
+    dm = np.asarray(demand_matrix, dtype=float)
+    days, hours = dm.shape
+    daily_totals = dm.sum(axis=1)
+    hourly_totals = dm.sum(axis=0)
+
+    critical_days = (
+        np.argsort(daily_totals)[-2:]
+        if daily_totals.size > 1
+        else [int(np.argmax(daily_totals))]
+    )
+    if np.any(hourly_totals > 0):
+        thresh = np.percentile(hourly_totals[hourly_totals > 0], 75)
+        peak_hours = np.where(hourly_totals >= thresh)[0]
+    else:
+        peak_hours = []
+
+    scores = []
+    for name, pat in patterns.items():
+        cols = len(pat) // 7
+        pat_mat = pat.reshape(7, cols)
+        dm_resized = _resize_matrix(dm, cols)
+        coverage = np.minimum(pat_mat, dm_resized)
+        score = coverage.sum()
+        if len(critical_days) > 0:
+            score += coverage[critical_days].sum() * critical_bonus
+        if len(peak_hours) > 0:
+            ph = [h for h in peak_hours if h < cols]
+            if ph:
+                score += coverage[:, ph].sum() * peak_bonus
+        scores.append((name, score))
+
+    scores.sort(key=lambda x: x[1], reverse=True)
+    keep_n = max(1, int(len(scores) * keep_percentage))
+    top = {name for name, _ in scores[:keep_n]}
+    return {k: patterns[k] for k in top}
+
+
 def load_shift_patterns(
     cfg: Union[str, dict],
     *,
@@ -76,13 +149,20 @@ def load_shift_patterns(
     break_from_end: float = 2.0,
     slot_duration_minutes: int | None = 30,
     max_patterns: int | None = None,
+    demand_matrix: np.ndarray | None = None,
+    keep_percentage: float = 0.3,
+    peak_bonus: float = 1.5,
+    critical_bonus: float = 2.0,
 ) -> Dict[str, np.ndarray]:
     """Parse JSON shift configuration and return pattern dictionary.
 
     If ``slot_duration_minutes`` is provided it overrides the value of
     ``slot_duration_minutes`` defined inside each shift.  Passing ``None`` keeps
     the per-shift resolution intact.  When ``max_patterns`` is provided the
-    generator stops once that many unique patterns have been produced.
+    generator stops once that many unique patterns have been produced.  When a
+    ``demand_matrix`` is supplied patterns are scored and only the top
+    ``keep_percentage`` are returned. ``peak_bonus`` and ``critical_bonus``
+    control the extra weight for covering peak hours or critical days.
     """
     if isinstance(cfg, str):
         with open(cfg, "r") as fh:
@@ -172,8 +252,24 @@ def load_shift_patterns(
                     shifts_coverage[shift_name] = pattern
                     unique_patterns[pat_key] = shift_name
                     if max_patterns is not None and len(shifts_coverage) >= max_patterns:
+                        if demand_matrix is not None:
+                            return score_and_filter_patterns(
+                                shifts_coverage,
+                                demand_matrix,
+                                keep_percentage=keep_percentage,
+                                peak_bonus=peak_bonus,
+                                critical_bonus=critical_bonus,
+                            )
                         return shifts_coverage
 
+    if demand_matrix is not None:
+        shifts_coverage = score_and_filter_patterns(
+            shifts_coverage,
+            demand_matrix,
+            keep_percentage=keep_percentage,
+            peak_bonus=peak_bonus,
+            critical_bonus=critical_bonus,
+        )
     return shifts_coverage
 try:
     import pulp
@@ -2319,8 +2415,14 @@ def generate_weekly_pattern(start_hour, duration, working_days, dso_day=None, br
 
     return pattern.flatten()
 
-def generate_shift_patterns():
-    """Genera patrones exhaustivos con múltiples franjas de break"""
+def generate_shift_patterns(
+    demand_matrix: np.ndarray | None = None,
+    *,
+    keep_percentage: float = 0.3,
+    peak_bonus: float = 1.5,
+    critical_bonus: float = 2.0,
+) -> Dict[str, np.ndarray]:
+    """Genera patrones exhaustivos con múltiples franjas de break."""
     shifts_coverage = {}
     
     # Horas de inicio cada 30 minutos

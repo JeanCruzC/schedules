@@ -27,6 +27,7 @@ with open(SCRIPT_PATH, "r") as fh:
     code = "".join(lines)
 exec(code, module.__dict__)
 load_shift_patterns = module.load_shift_patterns
+score_and_filter_patterns = module.score_and_filter_patterns
 
 class LoaderTest(unittest.TestCase):
     def test_v1_format(self):
@@ -52,6 +53,25 @@ class LoaderTest(unittest.TestCase):
         self.assertEqual(mat[1, 0], 1)
         self.assertEqual(mat[1, 1], 1)
         self.assertEqual(mat[1, 2], 1)
+
+    def test_score_filtering(self):
+        demand = np.zeros((7, 24))
+        demand[0, 12] = 1
+        cfg = {
+            "shifts": [
+                {"name": "PEAK", "pattern": {"work_days": [0], "segments": [1]}, "break": 0},
+                {"name": "OFF", "pattern": {"work_days": [1], "segments": [1]}, "break": 0},
+            ]
+        }
+        data = load_shift_patterns(
+            cfg,
+            start_hours=[12],
+            slot_duration_minutes=60,
+            demand_matrix=demand,
+            keep_percentage=0.5,
+        )
+        self.assertEqual(len(data), 1)
+        self.assertIn("PEAK_12.0_0_1", data)
 
 if __name__ == '__main__':
     unittest.main()
