@@ -68,6 +68,37 @@ def score_pattern(pattern: np.ndarray, demand_matrix: np.ndarray) -> int:
     return int(np.minimum(pat[:lim], dm[:lim]).sum())
 
 
+def show_generation_progress(
+    processed: int,
+    total: int,
+    start_time: float,
+    progress_bar=None,
+    status_placeholder=None,
+    label: str = "Patrones",
+) -> None:
+    """Display generation or solving progress with memory usage."""
+    if progress_bar is not None and total > 0:
+        progress_bar.progress(min(1.0, processed / total))
+
+    elapsed = max(time.time() - start_time, 0.001)
+    speed = processed / elapsed
+    mem = psutil.virtual_memory()
+    msg = (
+        f"{label}: {processed}/{total} | "
+        f"{mem.percent:.1f}% RAM ({mem.used / 1024 ** 3:.1f} GB) | "
+        f"{speed:.1f}/s"
+    )
+
+    if status_placeholder is not None:
+        status_placeholder.text(msg)
+    else:
+        st.text(msg)
+
+    if mem.percent > 85:
+        gc.collect()
+        st.warning("🚨 Uso de memoria alto, limpiando...")
+
+
 def load_shift_patterns(
     cfg: Union[str, dict],
     *,
@@ -819,6 +850,7 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
     # Crear barra de progreso para generación de patrones
     pattern_progress = st.progress(0)
     pattern_status = st.empty()
+    start_time_gen = time.time()
     
     shifts_coverage = {}
     seen_patterns = set()
@@ -911,8 +943,13 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
 
                         current_patterns += 1
                         if total_patterns > 0:
-                            pattern_progress.progress(current_patterns / total_patterns)
-                            pattern_status.text(f"Generando patrones FT8: {current_patterns}/{total_patterns}")
+                            show_generation_progress(
+                                current_patterns,
+                                total_patterns,
+                                start_time_gen,
+                                pattern_progress,
+                                pattern_status,
+                            )
                         if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                             truncated = total_patterns - len(shifts_coverage)
                             pattern_progress.progress(1.0)
@@ -954,6 +991,15 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
                             if batch_size and len(shifts_coverage) >= batch_size:
                                 yield shifts_coverage
                                 shifts_coverage = {}
+                            current_patterns += 1
+                            if total_patterns > 0:
+                                show_generation_progress(
+                                    current_patterns,
+                                    total_patterns,
+                                    start_time_gen,
+                                    pattern_progress,
+                                    pattern_status,
+                                )
                             if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                                 truncated = total_patterns - len(shifts_coverage)
                                 pattern_progress.progress(1.0)
@@ -992,6 +1038,15 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
                             if batch_size and len(shifts_coverage) >= batch_size:
                                 yield shifts_coverage
                                 shifts_coverage = {}
+                            current_patterns += 1
+                            if total_patterns > 0:
+                                show_generation_progress(
+                                    current_patterns,
+                                    total_patterns,
+                                    start_time_gen,
+                                    pattern_progress,
+                                    pattern_status,
+                                )
                             if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                                 truncated = total_patterns - len(shifts_coverage)
                                 pattern_progress.progress(1.0)
@@ -1028,6 +1083,15 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
                             if batch_size and len(shifts_coverage) >= batch_size:
                                 yield shifts_coverage
                                 shifts_coverage = {}
+                            current_patterns += 1
+                            if total_patterns > 0:
+                                show_generation_progress(
+                                    current_patterns,
+                                    total_patterns,
+                                    start_time_gen,
+                                    pattern_progress,
+                                    pattern_status,
+                                )
                             if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                                 truncated = total_patterns - len(shifts_coverage)
                                 pattern_progress.progress(1.0)
@@ -1064,6 +1128,15 @@ def generate_shifts_coverage_corrected(*, max_patterns: int | None = None, batch
                             if batch_size and len(shifts_coverage) >= batch_size:
                                 yield shifts_coverage
                                 shifts_coverage = {}
+                            current_patterns += 1
+                            if total_patterns > 0:
+                                show_generation_progress(
+                                    current_patterns,
+                                    total_patterns,
+                                    start_time_gen,
+                                    pattern_progress,
+                                    pattern_status,
+                                )
                             if max_patterns is not None and len(shifts_coverage) >= max_patterns:
                                 truncated = total_patterns - len(shifts_coverage)
                                 pattern_progress.progress(1.0)
@@ -2709,6 +2782,9 @@ def solve_in_chunks(shifts_coverage: Dict[str, np.ndarray], demand_matrix: np.nd
     """Solve using chunks of patterns sorted by score."""
     items = list(shifts_coverage.items())
     items.sort(key=lambda kv: score_pattern(kv[1], demand_matrix), reverse=True)
+    progress_bar = st.progress(0)
+    status = st.empty()
+    start_time = time.time()
     assignments_total: Dict[str, int] = {}
     coverage = np.zeros_like(demand_matrix)
     for i in range(0, len(items), chunk_size):
@@ -2721,7 +2797,17 @@ def solve_in_chunks(shifts_coverage: Dict[str, np.ndarray], demand_matrix: np.nd
             assignments_total[name] = assignments_total.get(name, 0) + val
             slots = len(chunk[name]) // 7
             coverage += chunk[name].reshape(7, slots) * val
+        show_generation_progress(
+            min(i + chunk_size, len(items)),
+            len(items),
+            start_time,
+            progress_bar,
+            status,
+            "Solver",
+        )
         gc.collect()
+    progress_bar.progress(1.0)
+    status.empty()
     return assignments_total
 
 
