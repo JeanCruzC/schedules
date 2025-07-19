@@ -27,6 +27,13 @@ This project creates optimized work schedules using Streamlit.
 
 The expected Excel file `Requerido.xlsx` must contain a column named `Día` with values from 1 to 7 and a column `Suma de Agentes Requeridos Erlang` representing the hourly staffing requirements.
 
+## Time Slot Resolution
+
+Schedules are represented using 7×24 matrices. **Each slot corresponds to one hour**, so both demand and generated patterns operate at hourly resolution. The example JSON files therefore use `"slot_duration_minutes": 60`.
+
+With hourly slots the JEAN profile can produce over a thousand possible patterns when all shift types are enabled (around 1360 for a full seven‑day demand).
+Coverage calculations now use compact integer arrays to keep memory usage low during optimization.
+
 ## Perfil JEAN
 
 Incluye un perfil de optimización llamado **JEAN** que minimiza la suma de
@@ -118,6 +125,10 @@ Example `examples/shift_config_v2.json`:
   ]
 }
 ```
+
+In **v2** each segment may specify a `count` field to produce several patterns
+with the same duration. The generator also validates that weekly hours do not
+exceed 48 h for full time or 24 h for part time shifts.
 
 A single file may also combine the JEAN slider parameters with the
 `shifts` array in **v2** format. See `examples/shift_config_jean_v2.json`
