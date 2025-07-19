@@ -29,7 +29,7 @@ The expected Excel file `Requerido.xlsx` must contain a column named `Día` with
 
 ## Time Slot Resolution
 
-Schedules are represented using 7×24 matrices. **Each slot corresponds to one hour**, so both demand and generated patterns operate at hourly resolution. The example JSON files therefore use `"slot_duration_minutes": 60`.
+Schedules are represented using 7×24 matrices. **Each slot corresponds to one hour** and the current implementation cannot subdivide these hours. Values such as `"slot_duration_minutes": 30` are ignored unless you use an enhanced version of the generator. The bundled examples therefore keep `"slot_duration_minutes": 60` and all demand and pattern data operate at hourly resolution.
 
 With hourly slots the JEAN profile can produce over a thousand possible patterns when all shift types are enabled (around 1360 for a full seven‑day demand).
 Coverage calculations now use compact integer arrays to keep memory usage low during optimization.
@@ -106,7 +106,7 @@ Example `examples/shift_config_v2.json`:
   "shifts": [
     {
       "name": "FT_12_9_6",
-      "slot_duration_minutes": 30,
+      "slot_duration_minutes": 60,
       "pattern": {
         "work_days": 6,
         "segments": [
