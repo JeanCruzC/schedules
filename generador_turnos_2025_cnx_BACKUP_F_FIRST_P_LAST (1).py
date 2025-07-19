@@ -60,6 +60,7 @@ def load_shift_patterns(
         data = cfg
 
     shifts_coverage: Dict[str, np.ndarray] = {}
+    unique_patterns: Dict[bytes, str] = {}
     for shift in data.get("shifts", []):
         name = shift.get("name", "SHIFT")
         pat = shift.get("pattern", {})
@@ -112,10 +113,14 @@ def load_shift_patterns(
                     pattern = _build_pattern(
                         days_sel, perm, sh, brk_len, brk_start, brk_end
                     )
+                    pat_key = pattern.tobytes()
+                    if pat_key in unique_patterns:
+                        continue
                     day_str = "".join(map(str, days_sel))
                     seg_str = "_".join(map(str, perm))
                     shift_name = f"{name}_{sh:04.1f}_{day_str}_{seg_str}"
                     shifts_coverage[shift_name] = pattern
+                    unique_patterns[pat_key] = shift_name
 
     return shifts_coverage
 try:
