@@ -2343,9 +2343,18 @@ def optimize_jean_search(shifts_coverage, demand_matrix, target_coverage=98.0, m
 def optimize_schedule_iterative(shifts_coverage, demand_matrix):
     """Función principal con estrategia FT primero + PT después"""
     if PULP_AVAILABLE:
-        if optimization_profile in ("JEAN", "JEAN Personalizado"):
+        if optimization_profile == "JEAN":
             st.info("🔍 **Búsqueda JEAN**: cobertura sin exceso")
             return optimize_jean_search(shifts_coverage, demand_matrix, verbose=VERBOSE)
+
+        if optimization_profile == "JEAN Personalizado":
+            if use_ft and use_pt:
+                st.info("🏢⏰ **Estrategia 2 Fases**: FT sin exceso → PT para completar")
+                return optimize_ft_then_pt_strategy(shifts_coverage, demand_matrix)
+            else:
+                st.info("🔍 **Búsqueda JEAN**: cobertura sin exceso")
+                return optimize_jean_search(shifts_coverage, demand_matrix, verbose=VERBOSE)
+
         if use_ft and use_pt:
             st.info("🏢⏰ **Estrategia 2 Fases**: FT sin exceso → PT para completar")
             return optimize_ft_then_pt_strategy(shifts_coverage, demand_matrix)
