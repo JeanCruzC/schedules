@@ -2350,7 +2350,17 @@ def optimize_schedule_iterative(shifts_coverage, demand_matrix):
         if optimization_profile == "JEAN Personalizado":
             if use_ft and use_pt:
                 st.info("🏢⏰ **Estrategia 2 Fases**: FT sin exceso → PT para completar")
-                return optimize_ft_then_pt_strategy(shifts_coverage, demand_matrix)
+                assignments, method = optimize_ft_then_pt_strategy(shifts_coverage, demand_matrix)
+
+                results = analyze_results(assignments, shifts_coverage, demand_matrix)
+                if results:
+                    cov = results["coverage_percentage"]
+                    score = results["overstaffing"] + results["understaffing"]
+                    if cov < TARGET_COVERAGE or score > 0:
+                        st.info("♻️ **Refinando con búsqueda JEAN**")
+                        assignments, method = optimize_jean_search(shifts_coverage, demand_matrix, verbose=VERBOSE)
+
+                return assignments, method
             else:
                 st.info("🔍 **Búsqueda JEAN**: cobertura sin exceso")
                 return optimize_jean_search(shifts_coverage, demand_matrix, verbose=VERBOSE)

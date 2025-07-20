@@ -52,7 +52,9 @@ break para cada tipo. El resto de parámetros del solver se fijan automáticamen
 según el perfil **JEAN**. Para Part Time la duración del break puede fijarse en
 0 horas si así lo requiere la normativa. Si se habilitan ambos contratos a la vez,
 el optimizador ejecuta una estrategia en dos fases que asigna los turnos **Full Time**
-sin exceso y luego completa la cobertura con los **Part Time**.
+sin exceso y luego completa la cobertura con los **Part Time**. A continuación
+refina el resultado usando la búsqueda de puntuación **JEAN** para mejorar la
+ cobertura y el score.
 
 ## JSON Template
 
