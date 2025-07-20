@@ -2705,25 +2705,24 @@ def export_detailed_schedule(assignments, shifts_coverage):
                 work_hours = np.where(day_pattern == 1)[0]
 
                 if len(work_hours) > 0:
+                    start_idx = int(start_hour)
                     # Calcular horario específico para cada tipo
                     if shift_name.startswith('PT'):
                         # Para PT usar las horas reales trabajadas según el patrón
-                        start_idx = int(start_hour)
                         end_idx = (int(work_hours[-1]) + 1) % 24
                         next_day = end_idx <= start_idx
                         horario = f"{start_idx:02d}:00-{end_idx:02d}:00" + ("+1" if next_day else "")
                     elif shift_name.startswith('FT10p8'):
-                        start_idx = int(start_hour)
                         end_idx = (int(work_hours[-1]) + 1) % 24
                         next_day = end_idx <= start_idx
                         horario = f"{start_idx:02d}:00-{end_idx:02d}:00" + ("+1" if next_day else "")
                     else:
                         # Otros turnos normales
-                        end_hour = int(start_hour + total_hours)
-                        if end_hour > 24:
-                            horario = f"{int(start_hour):02d}:00-{end_hour-24:02d}:00+1"
-                        else:
-                            horario = f"{int(start_hour):02d}:00-{end_hour:02d}:00"
+                        end_idx = int(work_hours[-1]) + 1
+                        next_day = end_idx <= start_idx
+                        horario = (
+                            f"{start_idx:02d}:00-{end_idx % 24:02d}:00" + ("+1" if next_day else "")
+                        )
 
                     # Calcular break específico
                     if shift_name.startswith('PT'):
@@ -2743,16 +2742,14 @@ def export_detailed_schedule(assignments, shifts_coverage):
                             break_time = ""
                     else:
                         # Otros turnos con break de 1 hora
-                        all_expected = set(range(int(start_hour), int(start_hour + total_hours)))
-                        actual_hours = set(work_hours)
-                        break_hours = all_expected - actual_hours
+                        expected = list(range(start_idx, end_idx))
+                        if next_day:
+                            expected = list(range(start_idx, 24)) + list(range(0, end_idx % 24))
+                        break_hours = set(expected) - set(work_hours)
 
                         if break_hours:
-                            break_hour = min(break_hours) % 24
-                            break_end = (break_hour + 1) % 24
-                            if break_end == 0:
-                                break_end = 24
-                            break_time = f"{break_hour:02d}:00-{break_end:02d}:00"
+                            break_hour = min(break_hours)
+                            break_time = f"{break_hour % 24:02d}:00-{((break_hour + 1) % 24) or 24:02d}:00"
                         else:
                             break_time = ""
 
