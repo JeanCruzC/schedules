@@ -56,6 +56,11 @@ sin exceso y luego completa la cobertura con los **Part Time**. A continuación
 refina el resultado usando la búsqueda de puntuación **JEAN** para mejorar la
  cobertura y el score.
 
+The solver reports a `coverage_percentage` metric. This value is
+demand‑weighted: the total covered demand hours are divided by the total
+required hours, providing a more accurate view of how much of the
+workload is satisfied.
+
 ## JSON Template
 
 The **JEAN Personalizado** sidebar allows loading a configuration template in

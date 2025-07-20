@@ -2741,7 +2741,11 @@ def generate_weekly_pattern_advanced(start_hour, duration, working_days, break_p
     return pattern.flatten()
 
 def analyze_results(assignments, shifts_coverage, demand_matrix):
-    """Analiza los resultados de la optimización"""
+    """Analiza los resultados de la optimización.
+
+    Calcula métricas como :data:`coverage_percentage`, que ahora
+    representa el porcentaje de demanda cubierta (ponderado por horas).
+    """
     if not assignments:
         return None
     
@@ -2770,9 +2774,9 @@ def analyze_results(assignments, shifts_coverage, demand_matrix):
             pt_agents += count
     
     # Calcular métricas
-    coverage_hours = (total_coverage > 0).sum()
-    required_hours = (demand_matrix > 0).sum()
-    coverage_percentage = (coverage_hours / required_hours * 100) if required_hours > 0 else 0
+    total_demand = demand_matrix.sum()
+    total_covered = np.minimum(total_coverage, demand_matrix).sum()
+    coverage_percentage = (total_covered / total_demand) * 100 if total_demand > 0 else 0
     
     # Calcular over/under staffing
     diff_matrix = total_coverage - demand_matrix
