@@ -2629,9 +2629,22 @@ def create_heatmap(matrix, title, cmap='RdYlBu_r'):
 # ——————————————————————————————————————————————————————————————
 
 def _extract_start_hour(name: str) -> float:
-    """Return the start hour encoded in a shift name."""
-    m = re.search(r"_(\d{1,2}(?:\.\d)?)", name)
-    return float(m.group(1)) if m else 0.0
+    """Return the first decimal start hour found in ``name``.
+
+    The shift naming convention encodes the start hour separated by
+    underscores.  Older patterns only looked for the first numeric
+    segment after an underscore which failed when additional metadata
+    preceded the hour.  The updated logic scans all underscore
+    separated tokens and returns the first value containing a decimal
+    point, e.g. ``08.0``.
+    """
+    for part in name.split('_'):
+        if '.' in part and part.replace('.', '').isdigit():
+            try:
+                return float(part)
+            except ValueError:
+                continue
+    return 0.0
 
 def export_detailed_schedule(assignments, shifts_coverage):
     """Exporta horarios semanales detallados - ROBUSTO"""
