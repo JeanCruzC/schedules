@@ -2827,19 +2827,29 @@ def export_detailed_schedule(assignments, shifts_coverage):
             total_hours = shift_duration + 1
         elif shift_name.startswith('FT'):
             shift_type = 'FT'
-            try:
-                shift_duration = int(parts[0][2:])  # FT8 -> 8
-            except ValueError as e:
-                st.warning(f"Duración de turno no válida en {shift_name}: {e}")
-                shift_duration = 8
+            if '_Variado_' in shift_name or len(parts) > 4:
+                shift_duration = int(pattern_matrix.sum(axis=1).max())
+            else:
+                try:
+                    if len(parts[0]) > 2 and parts[0][2:].isdigit():
+                        shift_duration = int(parts[0][2:])
+                    else:
+                        shift_duration = int(pattern_matrix.sum(axis=1).max())
+                except (ValueError, IndexError):
+                    shift_duration = int(pattern_matrix.sum(axis=1).max())
             total_hours = shift_duration + 1
         elif shift_name.startswith('PT'):
             shift_type = 'PT'
-            try:
-                shift_duration = int(parts[0][2:])  # PT4 -> 4
-            except ValueError as e:
-                st.warning(f"Duración de turno no válida en {shift_name}: {e}")
-                shift_duration = 4
+            if '_Variado_' in shift_name or len(parts) > 4:
+                shift_duration = int(pattern_matrix.sum(axis=1).max())
+            else:
+                try:
+                    if len(parts[0]) > 2 and parts[0][2:].isdigit():
+                        shift_duration = int(parts[0][2:])
+                    else:
+                        shift_duration = int(pattern_matrix.sum(axis=1).max())
+                except (ValueError, IndexError):
+                    shift_duration = int(pattern_matrix.sum(axis=1).max())
             total_hours = shift_duration
         else:
             shift_type = 'FT'
