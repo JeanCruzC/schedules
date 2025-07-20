@@ -1339,214 +1339,21 @@ def generate_shifts_coverage_optimized(
 # ——————————————————————————————————————————————————————————————
 
 def optimize_with_phased_strategy(shifts_coverage, demand_matrix):
-    """Optimización en fases: FT primero, luego PT para completar"""
+    """Optimización en fases utilizando la estrategia FT→PT"""
     if not PULP_AVAILABLE:
         return optimize_schedule_greedy(shifts_coverage, demand_matrix)
-    
-    # Separar turnos por tipo
-    ft_shifts = {k: v for k, v in shifts_coverage.items() if k.startswith('FT')}
-    pt_shifts = {k: v for k, v in shifts_coverage.items() if k.startswith('PT')}
-    
-    # Determinar estrategia según selección del usuario
+
     if use_ft and use_pt:
-        return optimize_ft_then_pt(ft_shifts, pt_shifts, demand_matrix)
+        return optimize_ft_then_pt_strategy(shifts_coverage, demand_matrix)
     elif use_ft and not use_pt:
+        ft_shifts = {k: v for k, v in shifts_coverage.items() if k.startswith('FT')}
         return optimize_single_type(ft_shifts, demand_matrix, "FT")
     elif use_pt and not use_ft:
+        pt_shifts = {k: v for k, v in shifts_coverage.items() if k.startswith('PT')}
         return optimize_single_type(pt_shifts, demand_matrix, "PT")
     else:
         return {}, "NO_CONTRACT_TYPE_SELECTED"
 
-def optimize_ft_then_pt(ft_shifts, pt_shifts, demand_matrix):
-    """Fase 1: FT sin exceso, Fase 2: PT para completar"""
-    try:
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # FASE 1: Optimizar FT sin exceso
-        status_text.text("🏢 Fase 1: Optimizando Full Time (sin exceso)...")
-        progress_bar.progress(0.2)
-        
-        ft_assignments = optimize_ft_phase(ft_shifts, demand_matrix)
-        
-        # Calcular cobertura después de FT
-        ft_coverage = np.zeros_like(demand_matrix)
-        for shift_name, count in ft_assignments.items():
-            slots_per_day = len(ft_shifts[shift_name]) // 7
-            pattern = np.array(ft_shifts[shift_name]).reshape(7, slots_per_day)
-            ft_coverage += pattern * count
-        
-        # FASE 2: Optimizar PT para completar
-        status_text.text("⏰ Fase 2: Optimizando Part Time (completar cobertura)...")
-        progress_bar.progress(0.6)
-        
-        remaining_demand = np.maximum(0, demand_matrix - ft_coverage)
-        pt_assignments = optimize_pt_phase(pt_shifts, remaining_demand)
-        
-        # Combinar resultados
-        final_assignments = {**ft_assignments, **pt_assignments}
-        
-        progress_bar.progress(1.0)
-        status_text.text("✅ Optimización en fases completada")
-        time.sleep(1)
-        progress_bar.empty()
-        status_text.empty()
-        
-        return final_assignments, "PHASED_FT_THEN_PT"
-        
-    except Exception as e:
-        st.error(f"Error en optimización por fases: {str(e)}")
-        return optimize_schedule_greedy(shifts_coverage, demand_matrix)
-
-def optimize_ft_phase(ft_shifts, demand_matrix):
-    """Optimiza FT usando parámetros del perfil seleccionado"""
-    if not ft_shifts:
-        return {}
-    
-    prob = pulp.LpProblem("FT_Phase", pulp.LpMinimize)
-    
-    # Variables FT con límite más generoso
-    max_ft_per_shift = max(10, int(demand_matrix.sum() / agent_limit_factor))
-    ft_vars = {}
-    for shift in ft_shifts.keys():
-        ft_vars[shift] = pulp.LpVariable(f"ft_{shift}", 0, max_ft_per_shift, pulp.LpInteger)
-    
-    # Variables de déficit y exceso
-    deficit_vars = {}
-    excess_vars = {}
-    hours = demand_matrix.shape[1]
-    for day in range(7):
-        for hour in range(hours):
-            deficit_vars[(day, hour)] = pulp.LpVariable(f"ft_deficit_{day}_{hour}", 0, None)
-            excess_vars[(day, hour)] = pulp.LpVariable(f"ft_excess_{day}_{hour}", 0, None)
-    
-    # Objetivo usando parámetros del perfil
-    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(hours)])
-    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(hours)])
-    total_ft_agents = pulp.lpSum([ft_vars[shift] for shift in ft_shifts.keys()])
-    
-    # Usar excess_penalty del perfil para controlar exceso en fase FT
-    prob += total_deficit * 10000 + total_excess * (excess_penalty * 50) + total_ft_agents * 0.01
-    
-    # Restricciones de cobertura
-    for day in range(7):
-        for hour in range(hours):
-            coverage = pulp.lpSum([
-                ft_vars[shift] * ft_shifts[shift][day * hours + hour]
-                for shift in ft_shifts.keys()
-            ])
-            demand = demand_matrix[day, hour]
-            
-            prob += coverage + deficit_vars[(day, hour)] >= demand
-            prob += coverage - excess_vars[(day, hour)] <= demand
-    
-    # Límite de exceso en fase FT según perfil
-    if optimization_profile in ("JEAN", "JEAN Personalizado"):
-        prob += total_excess == 0
-    elif excess_penalty > 5:  # Perfiles estrictos
-        prob += total_excess <= demand_matrix.sum() * 0.02  # 2% máximo
-    elif excess_penalty > 2:
-        prob += total_excess <= demand_matrix.sum() * 0.02  # 2% máximo
-    else:
-        prob += total_excess <= demand_matrix.sum() * 0.03  # 3% máximo
-    
-    # Resolver
-    prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=TIME_SOLVER//2))
-    
-    # Extraer resultados
-    ft_assignments = {}
-    if prob.status == pulp.LpStatusOptimal:
-        for shift in ft_shifts.keys():
-            value = int(ft_vars[shift].varValue or 0)
-            if value > 0:
-                ft_assignments[shift] = value
-    
-    return ft_assignments
-
-def optimize_pt_phase(pt_shifts, remaining_demand):
-    """Optimiza PT usando parámetros del perfil para completar cobertura"""
-    if not pt_shifts or remaining_demand.sum() == 0:
-        return {}
-    
-    prob = pulp.LpProblem("PT_Phase", pulp.LpMinimize)
-    
-    # Variables PT con límite basado en agent_limit_factor
-    max_pt_per_shift = max(10, int(remaining_demand.sum() / max(1, agent_limit_factor)))
-    pt_vars = {}
-    for shift in pt_shifts.keys():
-        pt_vars[shift] = pulp.LpVariable(f"pt_{shift}", 0, max_pt_per_shift, pulp.LpInteger)
-    
-    # Variables de déficit y exceso
-    deficit_vars = {}
-    excess_vars = {}
-    hours = remaining_demand.shape[1]
-    for day in range(7):
-        for hour in range(hours):
-            deficit_vars[(day, hour)] = pulp.LpVariable(f"pt_deficit_{day}_{hour}", 0, None)
-            excess_vars[(day, hour)] = pulp.LpVariable(f"pt_excess_{day}_{hour}", 0, None)
-    
-    # Objetivo usando parámetros del perfil
-    total_deficit = pulp.lpSum([deficit_vars[(day, hour)] for day in range(7) for hour in range(hours)])
-    total_excess = pulp.lpSum([excess_vars[(day, hour)] for day in range(7) for hour in range(hours)])
-    total_pt_agents = pulp.lpSum([pt_vars[shift] for shift in pt_shifts.keys()])
-    
-    # Bonificaciones por días críticos y horas pico
-    critical_bonus_value = 0
-    peak_bonus_value = 0
-    
-    # Identificar días críticos
-    daily_demand = remaining_demand.sum(axis=1)
-    if len(daily_demand) > 0 and daily_demand.max() > 0:
-        critical_day = np.argmax(daily_demand)
-        for hour in range(hours):
-            if remaining_demand[critical_day, hour] > 0:
-                critical_bonus_value -= deficit_vars[(critical_day, hour)] * critical_bonus
-    
-    # Identificar horas pico
-    hourly_demand = remaining_demand.sum(axis=0)
-    if len(hourly_demand) > 0 and hourly_demand.max() > 0:
-        peak_hour = np.argmax(hourly_demand)
-        for day in range(7):
-            if remaining_demand[day, peak_hour] > 0:
-                peak_bonus_value -= deficit_vars[(day, peak_hour)] * peak_bonus
-    
-    # Función objetivo con parámetros del perfil
-    prob += (total_deficit * 10000 + 
-             total_excess * (excess_penalty * 20) + 
-             total_pt_agents * 0.01 + 
-             critical_bonus_value + 
-             peak_bonus_value)
-    
-    # Restricciones de cobertura
-    for day in range(7):
-        for hour in range(hours):
-            coverage = pulp.lpSum([
-                pt_vars[shift] * pt_shifts[shift][day * hours + hour]
-                for shift in pt_shifts.keys()
-            ])
-            demand = remaining_demand[day, hour]
-            
-            prob += coverage + deficit_vars[(day, hour)] >= demand
-            prob += coverage - excess_vars[(day, hour)] <= demand
-
-    # Límite de exceso en fase PT según perfil
-    if optimization_profile in ("JEAN", "JEAN Personalizado"):
-        prob += total_excess == 0
-    elif excess_penalty > 5:
-        prob += total_excess <= remaining_demand.sum() * 0.02
-
-    # Resolver
-    prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=TIME_SOLVER//2))
-    
-    # Extraer resultados
-    pt_assignments = {}
-    if prob.status == pulp.LpStatusOptimal:
-        for shift in pt_shifts.keys():
-            value = int(pt_vars[shift].varValue or 0)
-            if value > 0:
-                pt_assignments[shift] = value
-    
-    return pt_assignments
 
 def optimize_single_type(shifts, demand_matrix, shift_type):
     """Optimiza un solo tipo usando parámetros del perfil"""
