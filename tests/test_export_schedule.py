@@ -69,3 +69,18 @@ def test_export_start_hour():
     # first data row after header
     horario = sheet["C2"].value
     assert horario.startswith("08:00")
+
+
+def test_variable_duration_end_time():
+    shift_name = "FT_10h_4dias_8h_1dia_07.0_01234_10_8_10_10_10"
+    pattern = _build_pattern([0, 1, 2, 3, 4], [10, 8, 10, 10, 10], 7.0, 0, 0, 0, 1)
+    assignments = {shift_name: 1}
+    coverage = {shift_name: pattern}
+
+    excel_bytes = export_detailed_schedule(assignments, coverage)
+    from openpyxl import load_workbook
+    from io import BytesIO
+    wb = load_workbook(BytesIO(excel_bytes))
+    sheet = wb["Horarios_Semanales"]
+    horario = sheet["C3"].value
+    assert horario == "07:00-15:00"
